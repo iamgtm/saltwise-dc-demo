@@ -1,0 +1,381 @@
+{
+ "schema": "saltwise.location_registry.v1",
+ "crs": "EPSG:4326 (WGS84 lon/lat; DCGIS service native 3857, queried with outSR=4326)",
+ "generated_utc": "2026-10-15T16:36:41Z",
+ "source_service": "https://maps2.dcgis.dc.gov/dcgis/rest/services/DCGIS_DATA/Transportation_WebMercator/MapServer",
+ "tolerances": {
+  "intersection_roadway_block_m": 25,
+  "bridge_roadway_block_m": 15,
+  "justification": "MAR intersection points sit at centerline crossings; 25 m covers half the width of DC arterials plus centerline offsets. Bridge points are length-midpoints of the DDOT bridge line and must also fall inside a DCGIS bridge deck polygon; 15 m keeps the check on the structure, away from banks and parallel roads."
+ },
+ "provider_road_match_note": "Provider road match is a separate check (Xweather response metadata). Missing provider road metadata stays 'unresolved', never 'verified'.",
+ "locations": [
+  {
+   "id": "rhode_island_ave_nw_scott_circle",
+   "name": "Rhode Island Avenue NW near Scott Circle",
+   "lat": 38.907495,
+   "lon": -77.035803,
+   "source": {
+    "layer": "Roadway Block [163]",
+    "feature": {
+     "BLOCK_NAME": "1550 - 1599 BLOCK OF RHODE ISLAND AVENUE NW",
+     "BLOCKKEY": "9858b3609becda70d32710013c9dbabf",
+     "OBJECTID": 4667369
+    }
+   },
+   "method": "Length-midpoint of DCGIS Roadway Block '1550 - 1599 BLOCK OF RHODE ISLAND AVENUE NW' (BLOCKKEY 9858b3609becda70d32710013c9dbabf), 37 m from the Scott Circle MAR node",
+   "selected_on": "2026-10-15",
+   "expected_road": "RHODE ISLAND AVENUE NW",
+   "aliases": [
+    "Rhode Island Ave NW",
+    "Scott Circle NW"
+   ],
+   "bridge": null,
+   "geographic_status": "verified",
+   "geographic_evidence": {
+    "roadway_blocks_within_15m": [
+     "1550 - 1599 BLOCK OF RHODE ISLAND AVENUE NW"
+    ]
+   },
+   "provider_road_match": {
+    "status": "mismatch",
+    "provider": "xweather",
+    "checked_utc": "2026-10-15T16:40:47.049809Z",
+    "provider_road": "Massachusetts Avenue Northwest",
+    "provider_road_type": "primary",
+    "returned_distance_m": 0.0,
+    "evidence_file": "runs/2026-10-15_123314_automation-foundation/perf/xweather/xweather_rhode_island_ave_nw_scott_circle.json"
+   },
+   "uncertainty": [
+    "Rejected: 'RHODE ISLAND AVENUE NE AND 16TH STREET NE' (wrong quadrant).",
+    "Point moved off the Scott Circle junction onto the Rhode Island Ave NW block after a provider road mismatch."
+   ],
+   "rejected_points": [
+    {
+     "lat": 38.90735242472779,
+     "lon": -77.03618262138052,
+     "method": "MAR intersection point 'RHODE ISLAND AVENUE NW AND SCOTT CIRCLE NW' (exact feature coordinates)",
+     "reason": "Xweather snapped this junction point to 'Massachusetts Avenue Northwest' (provider road mismatch)",
+     "provider_evidence": {
+      "status": "mismatch",
+      "provider": "xweather",
+      "checked_utc": "2026-10-15T16:40:09.443740Z",
+      "provider_road": "Massachusetts Avenue Northwest",
+      "provider_road_type": "primary",
+      "returned_distance_m": 0.1,
+      "bridge_flag_from_provider": null,
+      "evidence_file": "runs/2026-10-15_123314_automation-foundation/perf/xweather/xweather_rhode_island_ave_nw_scott_circle.json"
+     }
+    }
+   ],
+   "verification": {
+    "geographic_verification": {
+     "status": "verified",
+     "basis": "Length-midpoint of DCGIS Roadway Block '1550 - 1599 BLOCK OF RHODE ISLAND AVENUE NW'."
+    },
+    "provider_road_matching": {
+     "status": "mismatch",
+     "basis": "Xweather returned 'Massachusetts Avenue Northwest' (type 'primary') at the Scott Circle junction and again at the 1550 block (2026-10-15)."
+    },
+    "bridge_specific_modeling": {
+     "status": "not_applicable",
+     "basis": "Not a bridge point."
+    }
+   },
+   "open_questions": [
+    "Which Rhode Island Ave NW point should represent this location? Proposed next test: a point on the 1500 block east of 16th St NW, under a later run's Xweather budget (not attempted).",
+    "Until a provider road match is confirmed, pavement evidence stays withheld; the road stays in assumed service."
+   ]
+  },
+  {
+   "id": "garfield_st_nw_34th_st_nw",
+   "name": "Garfield Street NW at 34th Street NW",
+   "lat": 38.92753470376237,
+   "lon": -77.06638639670814,
+   "source": {
+    "layer": "Intersection Points (MAR) [35]",
+    "feature": {
+     "NAME": "GARFIELD STREET NW AND 34TH STREET NW",
+     "INTERSECTIONKEY": "6635c842a11b42906c217c7da475646c",
+     "OBJECTID": 38058280
+    }
+   },
+   "method": "MAR intersection point 'GARFIELD STREET NW AND 34TH STREET NW'",
+   "selected_on": "2026-10-15",
+   "expected_road": "GARFIELD STREET NW",
+   "aliases": [
+    "Garfield St NW",
+    "34th St NW"
+   ],
+   "bridge": null,
+   "geographic_status": "verified",
+   "geographic_evidence": {
+    "roadway_blocks_within_25m": [
+     "2800 - 2899 BLOCK OF 34TH STREET NW",
+     "2900 - 2928 BLOCK OF 34TH STREET NW",
+     "3300 - 3399 BLOCK OF GARFIELD STREET NW",
+     "3400 - 3410 BLOCK OF GARFIELD STREET NW"
+    ]
+   },
+   "provider_road_match": {
+    "status": "matched",
+    "provider": "xweather",
+    "checked_utc": "2026-10-15T16:40:09.987956Z",
+    "provider_road": "Garfield Street Northwest",
+    "provider_road_type": "secondary",
+    "returned_distance_m": 0.0,
+    "bridge_flag_from_provider": null,
+    "evidence_file": "runs/2026-10-15_123314_automation-foundation/perf/xweather/xweather_garfield_st_nw_34th_st_nw.json"
+   },
+   "uncertainty": [
+    "Rejected alias: '34TH PLACE NW AND GARFIELD STREET NW' at -77.067507 (about 97 m west) is a different street."
+   ],
+   "verification": {
+    "geographic_verification": {
+     "status": "verified",
+     "basis": "DCGIS MAR intersection point 'GARFIELD STREET NW AND 34TH STREET NW'; four matching roadway blocks within 25 m."
+    },
+    "provider_road_matching": {
+     "status": "matched",
+     "basis": "Xweather returned 'Garfield Street Northwest' (type 'secondary') at 0.0 m (2026-10-15)."
+    },
+    "bridge_specific_modeling": {
+     "status": "not_applicable",
+     "basis": "Not a bridge point."
+    }
+   },
+   "open_questions": []
+  },
+  {
+   "id": "michigan_ave_ne_bridge",
+   "name": "Michigan Avenue NE bridge",
+   "lat": 38.934165,
+   "lon": -76.994264,
+   "source": {
+    "layer": "Bridge Lines (DDOT) [133]",
+    "feature": {
+     "STRUCNAME": "Michigan Avenue, N.E. over 9th Street and CSX",
+     "STRUCT_NUM": "0596",
+     "BRIDGE_ID": "0596",
+     "OBJECTID": 22240
+    }
+   },
+   "method": "Length-midpoint of DDOT bridge line 0596 (185.4 m); point inside DCGIS bridge deck polygon [9]",
+   "selected_on": "2026-10-15",
+   "expected_road": "MICHIGAN AVENUE NE",
+   "aliases": [
+    "Michigan Ave NE"
+   ],
+   "bridge": {
+    "structure": "0596",
+    "crosses": "9th Street and CSX",
+    "on_deck_polygon": true
+   },
+   "geographic_status": "verified",
+   "geographic_evidence": {
+    "roadway_blocks_within_15m": [
+     "AVE",
+     "MICHIGAN",
+     "MICHIGAN AVE NE",
+     "bf98e0aaab23e21d9f6b65a3554a1104"
+    ]
+   },
+   "provider_road_match": {
+    "status": "matched",
+    "provider": "xweather",
+    "checked_utc": "2026-10-15T16:39:27.421334Z",
+    "provider_road": "Michigan Avenue Northeast",
+    "provider_road_type": "primary",
+    "returned_distance_m": 0.0,
+    "bridge_flag_from_provider": "not provided by Xweather (bridge status rests on DDOT geometry)",
+    "evidence_file": "runs/2026-10-15_123314_automation-foundation/perf/xweather/xweather_michigan_ave_ne_bridge.json"
+   },
+   "uncertainty": [
+    "See bridge_identity and open_questions (reconciled 2026-10-15)."
+   ],
+   "verification": {
+    "geographic_verification": {
+     "status": "verified",
+     "basis": "Length-midpoint of DDOT bridge line 0596 'Michigan Avenue, N.E. over 9th Street and CSX' (185.4 m), inside a DCGIS bridge deck polygon."
+    },
+    "provider_road_matching": {
+     "status": "matched",
+     "basis": "Xweather returned 'Michigan Avenue Northeast' (type 'primary') at 0.0 m (2026-10-15)."
+    },
+    "bridge_specific_modeling": {
+     "status": "unconfirmed",
+     "basis": "Not confirmed. Xweather returned road type 'primary' and no bridge attribute for this point. A matched road name and road type do not establish that the provider models bridge-deck thermal behavior; confirmation from Xweather documentation or support is still needed."
+    }
+   },
+   "open_questions": [
+    "User confirmation that 'Michigan Avenue NE bridge' means DDOT 0596 is still pending.",
+    "DDOT record 0046 is named 'Michigan Avenue, N.E. over Park Place' but its geometry (midpoint 38.928495, -77.018126) lies west of North Capitol Street (roughly -77.009; approximate, not re-queried), i.e. in the NW quadrant. Whether the label or the geometry is wrong cannot be settled from DCGIS alone; the registry does not use 0046.",
+    "Bridge-specific thermal modeling by Xweather is unconfirmed."
+   ],
+   "bridge_identity": {
+    "chosen": {
+     "id": "0596",
+     "name": "Michigan Avenue, N.E. over 9th Street and CSX",
+     "midpoint": [
+      38.934165,
+      -76.994264
+     ],
+     "quadrant_by_geometry": "NE (east of North Capitol St)"
+    },
+    "alternative_not_used": {
+     "id": "0046",
+     "name": "Michigan Avenue, N.E. over Park Place",
+     "midpoint": [
+      38.928495,
+      -77.018126
+     ],
+     "quadrant_by_geometry": "NW (west of North Capitol St)"
+    },
+    "finding": "The ID/quadrant inconsistency is in DDOT record 0046 (N.E. in the name, NW by geometry). 0596 is the only Michigan Avenue structure in the queried layer whose geometry lies in NE.",
+    "intent_confirmation": "pending (user)",
+    "reconciled_on": "2026-10-15"
+   }
+  },
+  {
+   "id": "benning_rd_bridge",
+   "name": "Benning Road bridge",
+   "lat": 38.896984,
+   "lon": -76.961728,
+   "source": {
+    "layer": "Bridge Lines (DDOT) [133]",
+    "feature": {
+     "STRUCNAME": "Ethel Kennedy Memorial Bridge over Anacostia R.",
+     "STRUCT_NUM": "0052",
+     "BRIDGE_ID": "0052",
+     "OBJECTID": 22369
+    }
+   },
+   "method": "Length-midpoint of DDOT bridge line 0052 (168.3 m); point inside DCGIS bridge deck polygon [9]",
+   "selected_on": "2026-10-15",
+   "expected_road": "BENNING ROAD NE",
+   "aliases": [
+    "Benning Rd NE",
+    "Ethel Kennedy Memorial Bridge"
+   ],
+   "bridge": {
+    "structure": "0052",
+    "crosses": "Anacostia River",
+    "on_deck_polygon": true
+   },
+   "geographic_status": "verified",
+   "geographic_evidence": {
+    "roadway_blocks_within_15m": [
+     "2700 - 3330 BLOCK OF BENNING ROAD NE",
+     "27985d059db452ceaa16ade28e038a41",
+     "BENNING",
+     "BENNING RD NE",
+     "RD"
+    ]
+   },
+   "provider_road_match": {
+    "status": "matched",
+    "provider": "xweather",
+    "checked_utc": "2026-10-15T16:40:10.275910Z",
+    "provider_road": "Benning Road Northeast",
+    "provider_road_type": "primary",
+    "returned_distance_m": 0.0,
+    "bridge_flag_from_provider": "not provided by Xweather (bridge status rests on DDOT geometry)",
+    "evidence_file": "runs/2026-10-15_123314_automation-foundation/perf/xweather/xweather_benning_rd_bridge.json"
+   },
+   "uncertainty": [
+    "See bridge_identity and open_questions (reconciled 2026-10-15)."
+   ],
+   "verification": {
+    "geographic_verification": {
+     "status": "verified",
+     "basis": "Length-midpoint of DDOT bridge line 0052 'Ethel Kennedy Memorial Bridge over Anacostia R.' (168.3 m), inside a DCGIS bridge deck polygon."
+    },
+    "provider_road_matching": {
+     "status": "matched",
+     "basis": "Xweather returned 'Benning Road Northeast' (type 'primary') at 0.0 m (2026-10-15)."
+    },
+    "bridge_specific_modeling": {
+     "status": "unconfirmed",
+     "basis": "Not confirmed. Xweather returned road type 'primary' and no bridge attribute for this point. A matched road name and road type do not establish that the provider models bridge-deck thermal behavior; confirmation from Xweather documentation or support is still needed."
+    }
+   },
+   "open_questions": [
+    "DCGIS returns two 0052 line features (midpoints 38.896984, -76.961728 and 38.897114, -76.961680), possibly separate carriageways (not confirmed); the registry uses the first.",
+    "Bridge-specific thermal modeling by Xweather is unconfirmed."
+   ],
+   "bridge_identity": {
+    "stated_intent": "Anacostia River crossing (user instruction, 2026-10-15)",
+    "chosen": {
+     "id": "0052",
+     "name": "Ethel Kennedy Memorial Bridge over Anacostia R."
+    },
+    "consistent_with_intent": true,
+    "alternatives_not_used": [
+     {
+      "id": "0077",
+      "name": "Benning Road, N.E. over Kingman Lake",
+      "reason": "not the Anacostia crossing; midpoint not inside a deck polygon"
+     },
+     {
+      "id": "0503",
+      "name": "EB/WB Benning Road over Kenilworth Avenue and RR (foundation-run notes)",
+      "reason": "not the Anacostia crossing"
+     }
+    ],
+    "reconciled_on": "2026-10-15"
+   }
+  },
+  {
+   "id": "mlk_jr_ave_se_alabama_ave_se",
+   "name": "Martin Luther King Jr. Avenue SE at Alabama Avenue SE",
+   "lat": 38.84313941595538,
+   "lon": -76.99996200153917,
+   "source": {
+    "layer": "Intersection Points (MAR) [35]",
+    "feature": {
+     "NAME": "ALABAMA AVENUE SE AND MARTIN LUTHER KING JR AVENUE SE",
+     "INTERSECTIONKEY": null,
+     "OBJECTID": 38058606
+    }
+   },
+   "method": "MAR intersection point 'MARTIN LUTHER KING JR AVENUE SE AND ALABAMA AVENUE SE'",
+   "selected_on": "2026-10-15",
+   "expected_road": "MARTIN LUTHER KING JR AVENUE SE",
+   "aliases": [
+    "MLK Jr Ave SE",
+    "Alabama Ave SE"
+   ],
+   "bridge": null,
+   "geographic_status": "partial",
+   "geographic_evidence": {
+    "roadway_blocks_within_25m": [
+     "3125 - 3131 BLOCK OF MARTIN LUTHER KING JR AVENUE SE"
+    ]
+   },
+   "provider_road_match": {
+    "status": "not_checked"
+   },
+   "uncertainty": [
+    "Only the MLK Jr Ave SE block (3125-3131) is within 25 m; no Alabama Ave SE block was returned. The MAR intersection has no INTERSECTIONKEY. Needs review before it counts as verified."
+   ],
+   "verification": {
+    "geographic_verification": {
+     "status": "partial",
+     "basis": "Only the MLK Jr Ave SE block (3125 - 3131) lies within 25 m of the MAR node; no Alabama Ave SE block was returned and the MAR intersection has no INTERSECTIONKEY."
+    },
+    "provider_road_matching": {
+     "status": "not_checked",
+     "basis": "No provider request: geographic verification is incomplete."
+    },
+    "bridge_specific_modeling": {
+     "status": "not_applicable",
+     "basis": "Not a bridge point."
+    }
+   },
+   "open_questions": [
+    "Needs a reviewed point (for example a re-query of Alabama Ave SE blocks near the node) before any provider request.",
+    "Pavement and air evidence stay withheld until then; the road stays in assumed service."
+   ]
+  }
+ ]
+}

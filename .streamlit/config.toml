@@ -1,0 +1,16 @@
+[theme]
+base = "light"
+primaryColor = "#D2560A"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F5F6F8"
+textColor = "#15171C"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+enableStaticServing = true
+fileWatcherType = "none"
+
+[client]
+toolbarMode = "minimal"
