@@ -1,5 +1,5 @@
 """Curated local media library (static/media): decorative stock footage and photographs with posters, served by
-Streamlit static serving at /app/static/media/. Sources, creators and licenses: static/media/SOURCES.json (editable record)."""
+Streamlit static serving via app-relative app/static/media/ URLs (including Cloud's path prefix). Sources, creators and licenses: static/media/SOURCES.json (editable record)."""
 import json
 from pathlib import Path
 
@@ -16,7 +16,7 @@ def urls(slots):
     out = {}
     for s in slots:
         r = rec[s]
-        out[s] = {"src": "/app/" + r["file"], "poster": "/app/" + r["poster"]}
+        out[s] = {"src": "app/" + r["file"], "poster": "app/" + r["poster"]}
         if r.get("file_small"):
-            out[s]["small"] = "/app/" + r["file_small"]
+            out[s]["small"] = "app/" + r["file_small"]
     return out
