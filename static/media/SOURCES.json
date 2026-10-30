@@ -64,7 +64,7 @@
   "slot": "stormlab_snowplow",
   "file": "static/media/stormlab_snowplow.mp4",
   "poster": "static/media/stormlab_snowplow.jpg",
-  "scene": "Snowplow clearing a city street (not DC; decorative, not a monitoring view)",
+  "scene": "Snowplow clearing Pozharskoho Street in Kyiv, Ukraine (not DC; decorative, not a monitoring view)",
   "title": "Плужний снігоочисник на вулиці.webm",
   "page": "https://commons.wikimedia.org/wiki/File%3A%D0%9F%D0%BB%D1%83%D0%B6%D0%BD%D0%B8%D0%B9_%D1%81%D0%BD%D1%96%D0%B3%D0%BE%D0%BE%D1%87%D0%B8%D1%81%D0%BD%D0%B8%D0%BA_%D0%BD%D0%B0_%D0%B2%D1%83%D0%BB%D0%B8%D1%86%D1%96.webm",
   "creator": "Роман Рябенко",
@@ -78,7 +78,12 @@
   "bytes_poster": 110385,
   "changes": "trimmed, cropped to 16:9, scaled, re-encoded, audio removed",
   "downloaded_via": "Wikimedia Commons API (metadata) and upload.wikimedia.org (file); Pexels/Pixabay returned HTTP 403 to direct requests",
-  "kind": "video"
+  "kind": "video",
+  "location_basis": "Commons file description: A snowplow truck moving along Pozharskoho street in Kyiv, Ukraine.",
+  "file_large": "static/media/stormlab_snowplow_1080.mp4",
+  "bytes_mp4_large": 5084058,
+  "clip_large": "1920x1080 (source-native maximum; the source is not 4K), 30 fps, H.264 CRF 29, no audio; served only to wide or high-density screens",
+  "credit_label": "Snowplow on Pozharskoho Street, Kyiv, Ukraine"
  },
  {
   "slot": "evidence_bridge",
@@ -122,5 +127,268 @@
   "bytes_poster": 88418,
   "changes": "resized and re-compressed",
   "downloaded_via": "Wikimedia Commons API (metadata) and upload.wikimedia.org (file)"
+ },
+ {
+  "slot": "home_dc_street",
+  "kind": "image",
+  "file": "static/media/home_dc_street_2400.jpg",
+  "poster": "static/media/home_dc_street_2400.jpg",
+  "file_small": "static/media/home_dc_street_1200.jpg",
+  "variants": [
+   {
+    "file": "static/media/home_dc_street_1200.jpg",
+    "w": 1200,
+    "h": 740,
+    "bytes": 173546
+   },
+   {
+    "file": "static/media/home_dc_street_2400.jpg",
+    "w": 2400,
+    "h": 1480,
+    "bytes": 514620
+   },
+   {
+    "file": "static/media/home_dc_street_3769.jpg",
+    "w": 3769,
+    "h": 2325,
+    "bytes": 1059612
+   }
+  ],
+  "scene": "Snow-covered Q Street NW, facing west, Dupont Circle, Washington DC, during the December 2009 blizzard (decorative, illustrative scenery; not a current road observation and not a demonstration location)",
+  "title": "Blizzard - Dupont Circle.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Blizzard_-_Dupont_Circle.jpg",
+  "creator": "dbking",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "license_note": "CC BY 2.0 as stated on the Commons file page; attribution required.",
+  "credit": "originally posted to Flickr as _MG_5801",
+  "date": "2009-12-19 17:05:47",
+  "location_basis": "Commons file description: Facing west on Q Street, N.W., in the Dupont Circle neighborhood of Washington, D.C., during the North American blizzard of 2009.",
+  "source_used": "Commons original file, 3769x2325",
+  "source_resolution": "3769x2325",
+  "clip": "Responsive JPEG widths 1200, 2400, 3769 px (largest = native width; never upscaled)",
+  "bytes_mp4": 514620,
+  "bytes_poster": 514620,
+  "changes": "resized and re-compressed; framed only by CSS cropping in the page",
+  "downloaded_via": "Wikimedia Commons API (original file), 2026-10-26"
+ },
+ {
+  "slot": "rw_dc_clearing",
+  "kind": "image",
+  "file": "static/media/rw_dc_clearing_2400.jpg",
+  "poster": "static/media/rw_dc_clearing_2400.jpg",
+  "file_small": "static/media/rw_dc_clearing_1200.jpg",
+  "variants": [
+   {
+    "file": "static/media/rw_dc_clearing_1200.jpg",
+    "w": 1200,
+    "h": 904,
+    "bytes": 180858
+   },
+   {
+    "file": "static/media/rw_dc_clearing_2400.jpg",
+    "w": 2400,
+    "h": 1807,
+    "bytes": 581946
+   },
+   {
+    "file": "static/media/rw_dc_clearing_4080.jpg",
+    "w": 4080,
+    "h": 3072,
+    "bytes": 1652427
+   }
+  ],
+  "scene": "Vehicles clearing a street in Washington DC at night after the late January 2026 snowstorm (decorative, illustrative scenery; not a current road observation and not a demonstration location)",
+  "title": "Vehicles clearing roads after the late January 2026 snowstorm in Washington, D.C..jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Vehicles_clearing_roads_after_the_late_January_2026_snowstorm_in_Washington,_D.C..jpg",
+  "creator": "Sdkb",
+  "license": "CC BY-SA 4.0",
+  "license_url": "https://creativecommons.org/licenses/by-sa/4.0",
+  "license_note": "CC BY-SA 4.0 as stated on the Commons file page; attribution and share-alike apply to this photograph.",
+  "credit": "Own work",
+  "date": "29 January 2026 (according to Exif data)",
+  "location_basis": "Commons file description: Vehicles clearing roads after the late January 2026 snowstorm in Washington, D.C.",
+  "source_used": "Commons original file, 4080x3072",
+  "source_resolution": "4080x3072",
+  "clip": "Responsive JPEG widths 1200, 2400, 4080 px (largest = native width; never upscaled)",
+  "bytes_mp4": 581946,
+  "bytes_poster": 581946,
+  "changes": "resized and re-compressed; framed only by CSS cropping in the page",
+  "downloaded_via": "Wikimedia Commons API (original file), 2026-10-26"
+ },
+ {
+  "slot": "rw_winter_landscape",
+  "kind": "image",
+  "file": "static/media/rw_winter_landscape_1600.jpg",
+  "poster": "static/media/rw_winter_landscape_1600.jpg",
+  "file_small": "static/media/rw_winter_landscape_1000.jpg",
+  "variants": [
+   {
+    "file": "static/media/rw_winter_landscape_1000.jpg",
+    "w": 1000,
+    "h": 667,
+    "bytes": 141721
+   },
+   {
+    "file": "static/media/rw_winter_landscape_1600.jpg",
+    "w": 1600,
+    "h": 1067,
+    "bytes": 382703
+   },
+   {
+    "file": "static/media/rw_winter_landscape_2560.jpg",
+    "w": 2560,
+    "h": 1707,
+    "bytes": 900776
+   },
+   {
+    "file": "static/media/rw_winter_landscape_3840.jpg",
+    "w": 3840,
+    "h": 2560,
+    "bytes": 1842021
+   }
+  ],
+  "scene": "Snowcoach on a snow-packed road along the Madison River, Yellowstone National Park, Wyoming (not DC; decorative, illustrative scenery; not a road observation)",
+  "title": "Bombardier along the Madison River (803d08ad-00ba-4496-ab79-69c3892ea18a).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Bombardier_along_the_Madison_River_(803d08ad-00ba-4496-ab79-69c3892ea18a).jpg",
+  "creator": "Jacob W. Frank",
+  "license": "Public domain",
+  "license_url": "https://commons.wikimedia.org/wiki/File:Bombardier_along_the_Madison_River_(803d08ad-00ba-4496-ab79-69c3892ea18a).jpg",
+  "license_note": "Public domain as stated on the Commons file page (US National Park Service photograph).",
+  "credit": "NPGallery",
+  "date": "Taken on 23 February 2018",
+  "location_basis": "Commons file description (NPS photo by Jacob W. Frank): A maroon colored Bombardier snowcoach on a snow packed road with mountains in the background. Bombardier along the Madison River Keywords: jacob w. frank; madison river; ynp; yellowstone; yellowstone national park; peopl",
+  "source_used": "Commons original file, 8688x5792",
+  "source_resolution": "8688x5792",
+  "clip": "Responsive JPEG widths 1000, 1600, 2560, 3840 px (largest downscaled from the 8688 px native original; never upscaled)",
+  "bytes_mp4": 382703,
+  "bytes_poster": 382703,
+  "changes": "resized and re-compressed; framed only by CSS cropping in the page",
+  "downloaded_via": "Wikimedia Commons API (original file), 2026-10-26"
+ },
+ {
+  "slot": "outlook_dc_storm",
+  "kind": "image",
+  "file": "static/media/outlook_dc_storm_2400.jpg",
+  "poster": "static/media/outlook_dc_storm_2400.jpg",
+  "file_small": "static/media/outlook_dc_storm_1200.jpg",
+  "variants": [
+   {
+    "file": "static/media/outlook_dc_storm_1200.jpg",
+    "w": 1200,
+    "h": 900,
+    "bytes": 192141,
+    "quality": 72
+   },
+   {
+    "file": "static/media/outlook_dc_storm_2400.jpg",
+    "w": 2400,
+    "h": 1800,
+    "bytes": 671603,
+    "quality": 72
+   },
+   {
+    "file": "static/media/outlook_dc_storm_4032.jpg",
+    "w": 4032,
+    "h": 3024,
+    "bytes": 2209427
+   }
+  ],
+  "scene": "16th Street NW, Washington, DC, during the January 25, 2026 snowstorm (decorative, illustrative scenery; not current conditions or a forecast)",
+  "credit_label": "16th Street NW, Washington, DC, January 25, 2026",
+  "title": "16th Street in snow storm.jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:16th_Street_in_snow_storm.jpg",
+  "source_url": "https://upload.wikimedia.org/wikipedia/commons/6/64/16th_Street_in_snow_storm.jpg",
+  "creator": "Nvss132",
+  "license": "CC0",
+  "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "credit": "Own work",
+  "date": "2026-01-25 15:07:37",
+  "location": "16th Street NW, Washington, DC, USA",
+  "location_basis": "Commons file description: View down 16th Street N.W. during the January 25, 2026 storm.",
+  "original_width": 4032,
+  "original_height": 3024,
+  "source_resolution": "4032x3024 (source-native; largest variant 4032x3024, never upscaled)",
+  "bytes_original": 8927044,
+  "sha1_original": "6dc16cb5e05b1a58df951f8743524c2cc951cec3",
+  "changes": "resized to 1200, 2400 and 4032 px wide (4032 = original width), JPEG quality 72/72/82, metadata removed; cropped only by the page frame",
+  "downloaded_via": "Wikimedia Commons API (metadata) and upload.wikimedia.org (original file)"
+ },
+ {
+  "slot": "stormlab_plow_train",
+  "kind": "image",
+  "file": "static/media/stormlab_plow_train_2400.jpg",
+  "poster": "static/media/stormlab_plow_train_2400.jpg",
+  "file_small": "static/media/stormlab_plow_train_1200.jpg",
+  "variants": [
+   {
+    "file": "static/media/stormlab_plow_train_1200.jpg",
+    "w": 1200,
+    "h": 900,
+    "bytes": 157210
+   },
+   {
+    "file": "static/media/stormlab_plow_train_2400.jpg",
+    "w": 2400,
+    "h": 1800,
+    "bytes": 558987
+   },
+   {
+    "file": "static/media/stormlab_plow_train_3840.jpg",
+    "w": 3840,
+    "h": 2880,
+    "bytes": 1397900
+   }
+  ],
+  "scene": "Oregon Department of Transportation crew plowing a freeway in tandem during the February 2014 winter storm (not DC; decorative, illustrative; not DC practice)",
+  "credit_label": "ODOT plow crew on an Oregon freeway, February 2014",
+  "title": "Gang plowing (12487673765).jpg",
+  "page": "https://commons.wikimedia.org/wiki/File:Gang_plowing_(12487673765).jpg",
+  "source_url": "https://upload.wikimedia.org/wikipedia/commons/9/91/Gang_plowing_%2812487673765%29.jpg",
+  "creator": "Oregon Department of Transportation",
+  "license": "CC BY 2.0",
+  "license_url": "https://creativecommons.org/licenses/by/2.0",
+  "credit": "Gang plowing",
+  "date": "2014-02-09 01:24",
+  "location": "Oregon, USA: a freeway cleared by ODOT's Sylvan maintenance crew (exact road not stated by the source; not DC)",
+  "location_basis": "Commons file description: ODOT's Sylvan crew clears the freeway during February's winter storm.",
+  "original_width": 4608,
+  "original_height": 3456,
+  "source_resolution": "4608x3456 (source-native; largest variant 3840x2880, never upscaled)",
+  "bytes_original": 6668559,
+  "sha1_original": "dadb986888b0dedca560ca97b49b98dad75d536b",
+  "changes": "resized to 1200, 2400 and 3840 px wide (original 4608), JPEG quality 82, metadata removed; cropped only by the page frame",
+  "downloaded_via": "Wikimedia Commons API (metadata) and upload.wikimedia.org (original file)"
+ },
+ {
+  "slot": "outlook_clouds",
+  "kind": "video",
+  "file": "static/media/outlook_clouds.mp4",
+  "poster": "static/media/outlook_clouds.jpg",
+  "file_large": "static/media/outlook_clouds_1080.mp4",
+  "scene": "Time-lapse of clouds over the Grand Canyon, Arizona, November 20, 2025 (not DC; decorative, not a forecast, radar or monitoring view)",
+  "credit_label": "Clouds over the Grand Canyon, Arizona, November 20, 2025",
+  "title": "B-roll Video - Time-lapse of Clouds over the Canyon - November 20, 2025 (55087231001).webm",
+  "page": "https://commons.wikimedia.org/wiki/File:B-roll_Video_-_Time-lapse_of_Clouds_over_the_Canyon_-_November_20,_2025_(55087231001).webm",
+  "source_url": "https://upload.wikimedia.org/wikipedia/commons/e/ed/B-roll_Video_-_Time-lapse_of_Clouds_over_the_Canyon_-_November_20%2C_2025_%2855087231001%29.webm",
+  "creator": "Grand Canyon NPS",
+  "license": "Public domain",
+  "license_url": "https://commons.wikimedia.org/wiki/File:B-roll_Video_-_Time-lapse_of_Clouds_over_the_Canyon_-_November_20,_2025_(55087231001).webm",
+  "credit": "B-roll Video - Time-lapse of Clouds over the Canyon - November 20, 2025",
+  "date": "Taken on 20 November 2025, 09:34:51",
+  "location": "Grand Canyon National Park, Arizona, USA (not DC)",
+  "location_basis": "Commons file title and description (NPS B-roll, Grand Canyon National Park)",
+  "original_width": 1920,
+  "original_height": 1080,
+  "source_resolution": "1920x1080, AV1 webm, 37 s (source-native maximum; the source is not 4K)",
+  "clip": "4.0-16.0 s; 1280x720, 30 fps, H.264 CRF 27, no audio",
+  "clip_large": "4.0-16.0 s; 1920x1080 (source-native maximum), 30 fps, H.264 CRF 29, no audio; served only to wide or high-density screens",
+  "bytes_mp4": 1462985,
+  "bytes_mp4_large": 2424202,
+  "bytes_poster": 145659,
+  "bytes_original": 14127305,
+  "sha1_original": "3d2f5e815e0e229e3dabec69c9a4e65b7038bff5",
+  "changes": "trimmed to 12 s, scaled, re-encoded to H.264, audio removed; poster is the first frame",
+  "downloaded_via": "Wikimedia Commons API (metadata) and upload.wikimedia.org (original file)"
  }
 ]

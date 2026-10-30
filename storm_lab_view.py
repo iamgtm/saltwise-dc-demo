@@ -10,6 +10,10 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+import page_media
+
+import dpw_feedback
+import impact
 import readiness
 import saltwise_contract as sc
 import scenarios
@@ -62,8 +66,8 @@ def _count(plan):
     return (sum(1 for p in plan.values() if p["initial"]), sum(len(p["later"]) for p in plan.values()))
 
 
-def assumption_rows(inp, window, b, s_, views, data_label="Synthetic fixtures; results are a simulation"):
-    """The applied inputs behind the comparison, one row each, so they read beside the results."""
+def assumption_rows(inp, window, b, s_, views, data_label="Synthetic fixtures; results are a simulation", anchored=False):
+    """The applied inputs behind the comparison, one row each with units and evidence status, so they read beside the results."""
     lm = inp["lane_miles"]
     vals = sorted(set(lm.values()))
     lm_text = (f"{sum(lm.values()):g} total · {vals[0]:g} per location" if len(vals) == 1
@@ -71,30 +75,62 @@ def assumption_rows(inp, window, b, s_, views, data_label="Synthetic fixtures; r
     bi, bl = _count(inp["plans"]["baseline"])
     si, sl = _count(inp["plans"]["scenario"])
     missing = sum(1 for v in views.values() if any(f["id"] == "evidence_review" for f in (v["flags"] or [])))
+    add = impact.additional_of(inp)
     return [
+        {"Assumption": "Locations", "In this comparison": f"{len(views)} demonstration points, all counted",
+         "Kind": "Registry points · not road segments", "Evidence": "Project evidence"},
         {"Assumption": "Accounting window", "In this comparison":
             f"{_fmt(window['start'])} – {_fmt(window['end'])}, every later / catch-up application inside it",
-         "Kind": "Editable"},
+         "Kind": "Editable", "Evidence": "Assumed"},
         {"Assumption": "Application rate", "In this comparison": f"{inp['rate']:g} lb per lane-mile",
-         "Kind": "Editable · not an approved DC rate"},
-        {"Assumption": "Lane-miles", "In this comparison": lm_text, "Kind": "Editable · not measured"},
+         "Kind": "Editable · not an approved DC rate", "Evidence": "Assumed"},
+        {"Assumption": "Lane-miles", "In this comparison": lm_text, "Kind": "Editable · not measured", "Evidence": "Assumed"},
         {"Assumption": "Baseline plan", "In this comparison":
             f"{bi} initial + {bl} later · start of window + a repeat 6 h later",
-         "Kind": "Illustrative reference · not DC practice"},
+         "Kind": "Illustrative reference · not DC practice", "Evidence": "Assumed"},
         {"Assumption": "Scenario plan", "In this comparison": f"{si} initial + {sl} later / catch-up",
-         "Kind": "Editable"},
+         "Kind": "Editable", "Evidence": "Assumed"},
+        {"Assumption": "Additional applications", "In this comparison":
+            f"{add['count']:g} × {impact.lane_miles_text(add['lane_miles_each'])}, inside the same window",
+         "Kind": "Hypothetical · editable", "Evidence": "Assumed"},
         {"Assumption": "Salt price", "In this comparison":
             f"${inp['price']:,.0f} per US short ton" if inp["price"] else "Not given, so cost is unavailable",
-         "Kind": "Editable"},
+         "Kind": "Editable", "Evidence": "Assumed" if inp["price"] else "Not given"},
         {"Assumption": "Required road service", "In this comparison":
             f"All {len(views)} locations stay in assumed service" + (f", including {missing} with missing evidence" if missing else ""),
-         "Kind": "Constraint · not traded away"},
-        {"Assumption": "Data", "In this comparison": data_label, "Kind": "Simulation"},
+         "Kind": "Constraint · not traded away", "Evidence": "Constraint"},
+        {"Assumption": "Data", "In this comparison": data_label, "Kind": "Simulation",
+         "Evidence": "Snapshot flags (read-only); totals simulated" if anchored else "Simulation"},
     ]
 
 
+def _load_example():
+    """Replace the applied assumptions with the illustrative comparison; runs only when the person presses the button."""
+    applied = st.session_state.get("storm_inputs") or {}
+    rec = st.session_state.get("storm_snapshot")
+    anchor = applied.get("anchor", "scenario") if rec else "scenario"
+    st.session_state.storm_inputs = impact.example_inputs(_anchor_time(anchor, rec), applied.get("window_key", "overnight"), anchor)
+    for k in ["sl_rate", "sl_price", "sl_add_n", "sl_add_lm"] + [f"{p}_{lid}" for lid, *_ in scenarios.LOCATIONS
+                                                                   for p in ("lm", "bi", "bl", "si", "sl")]:
+        st.session_state.pop(k, None)
+
+
+def _signed(d, pct=None):
+    text = "0 lb" if d == 0 else f"{d:+,.0f} lb"
+    return text if pct is None else text + (" (0%)" if pct == 0 else f" ({pct:+.1f}%)")
+
+
 def render(get_view, window_key_default="overnight"):
-    st.markdown(
+    _render_body(get_view, window_key_default)
+    page_media.credits(["stormlab_plow_train", "stormlab_snowplow"])
+
+
+def _render_body(get_view, window_key_default="overnight"):
+    # Opening: the question and the simulation banner beside an illustrative photograph; the experiment follows directly.
+    left = page_media.split("stormlab_plow_train", "Several plow trucks clearing a snow-covered freeway in tandem, Oregon (not DC)",
+                            key="sl_photo_plow", note="Illustrative photograph: an Oregon Department of Transportation crew plowing a "
+                            "freeway, February 2014 (not DC). Not DC practice, a SaltWise plan or a simulation result.", pos="50% 62%")
+    left.markdown(
         '<div class="sw-section">STORM LAB · SIMULATION · ILLUSTRATIVE ASSUMPTIONS</div>'
         '<h2 class="sw-h2">How does changing treatment timing affect total salt use across the whole storm?</h2>'
         '<div class="sw-banner">SIMULATION — every input below is an editable assumption, not a measured DC road length, '
@@ -126,12 +162,16 @@ def render(get_view, window_key_default="overnight"):
     top = st.container()
 
     st.markdown('<div class="sw-section">EDIT ASSUMPTIONS · APPLIED WHEN YOU PRESS UPDATE</div>', unsafe_allow_html=True)
+    st.caption("Optional: “Load illustrative comparison” (beside Update) replaces the applied assumptions with a constructed "
+               "arithmetic example. Your assumptions stay as they are until you press it.")
     # Form fields start from the last submitted assumptions (or the defaults), set through session state rather than
     # widget defaults, so they come back unchanged after visiting another page.
     applied = st.session_state.storm_inputs or {}
     _init("sl_window", applied.get("window_key", "overnight"))
     _init("sl_rate", applied.get("rate", 200.0))
     _init("sl_price", applied.get("price", 0.0))
+    _init("sl_add_n", int(impact.additional_of(applied)["count"]))
+    _init("sl_add_lm", float(impact.additional_of(applied)["lane_miles_each"]))
     with st.form("storm_form", border=False):
         g1, g2, g3 = st.columns(3)
         win = g1.selectbox("Accounting window (same for baseline and scenario)", list(WINDOWS),
@@ -140,6 +180,12 @@ def render(get_view, window_key_default="overnight"):
                                key="sl_rate", help="Illustrative assumption, not an approved DC rate.")
         price = g3.number_input("Salt price per US short ton (optional)", min_value=0.0, step=5.0, key="sl_price",
                                 help="Leave at 0 to keep financial results unavailable.")
+        a1, a2, _ = st.columns(3)
+        add_n = a1.number_input("Additional applications (hypothetical count)", min_value=0, max_value=50, step=1, key="sl_add_n",
+                                help="Extra applications added to the scenario and counted inside the same accounting window. "
+                                     "Tests whether later treatment erases the reduction; not assigned to a location or time.")
+        add_lm = a2.number_input("Lane-miles per additional application", min_value=0.0, step=0.5, key="sl_add_lm",
+                                 help="Assumed, not a measured DC road length.")
         anchor_opts = ["scenario"] + (["snapshot"] if rec else [])
         _init("sl_anchor", applied.get("anchor", "scenario"))
         if st.session_state["sl_anchor"] not in anchor_opts:
@@ -182,9 +228,15 @@ def render(get_view, window_key_default="overnight"):
                                              key=f"sl_{lid}")
                     plans["baseline"][lid] = {"initial": None if b_init == NONE else b_init, "later": list(b_later)}
                     plans["scenario"][lid] = {"initial": None if s_init == NONE else s_init, "later": list(s_later)}
-        submitted = st.form_submit_button("Update Storm Lab", type="primary")
+        u1, u2, _ = st.columns([1.1, 1.6, 3])
+        submitted = u1.form_submit_button("Update Storm Lab", type="primary")      # first submit button: Enter means Update
+        u2.form_submit_button("Load illustrative comparison", key="load_example", on_click=_load_example,
+                              help="Optional. Replaces the applied assumptions with a constructed arithmetic example: five locations, "
+                                   "one assumed lane-mile each, 200 lb per lane-mile. Nothing changes until you press this; "
+                                   "unsaved edits are discarded.")
     if submitted or st.session_state.storm_inputs is None:
-        new = {"window_key": win, "rate": rate, "price": price, "lane_miles": lane_miles, "plans": plans, "anchor": anchor}
+        new = {"window_key": win, "rate": rate, "price": price, "lane_miles": lane_miles, "plans": plans, "anchor": anchor,
+               "additional": {"count": int(add_n), "lane_miles_each": float(add_lm)}}
         if st.session_state.storm_inputs is not None and anchor != applied_anchor:
             # The window start is an assumption: re-time every application by the same offset, then redraw the form.
             new_e = _anchor_time(anchor, rec)
@@ -203,33 +255,44 @@ def render(get_view, window_key_default="overnight"):
     one_round = sum(inp["lane_miles"].get(lid, 0) * inp["rate"] for lid in
                     {lid for lid, v in views.items() if any(f["id"] in ("treatment_review", "refreeze_review") for f in (v["flags"] or []))})
     sens = sc.sensitivity(res["baseline"]["total_lb"], res["scenario"]["initial_lb"], one_round)
+    imp, isens = impact.compare(inp, window), impact.sensitivity(inp, window)
+    is_example = impact.matches_example(inp, E)
+    bt, ct = imp["totals"]["baseline"], imp["totals"]["comparison"]
 
     b, s_, av = res["baseline"], res["scenario"], res["material_avoided_lb"]
     with top:
+        if is_example:
+            st.markdown('<div class="sw-flag"><div class="sw-flag-title">ILLUSTRATIVE COMPARISON LOADED · CONSTRUCTED ARITHMETIC</div>'
+                        '<div class="sw-flag-reason"><ul>' + "".join(f"<li>{x}</li>" for x in impact.EXAMPLE_TEXT) +
+                        '</ul>Change the additional applications under Edit assumptions, or read the sensitivity below.</div></div>',
+                        unsafe_allow_html=True)
         st.markdown(f'<div class="sw-section">RESULTS · ACCOUNTING WINDOW {_fmt(window["start"])} – {_fmt(window["end"])}</div>',
                     unsafe_allow_html=True)
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Baseline total", f"{b['total_lb']:,.0f} lb", help="Initial + later applications, illustrative baseline")
-        m1.caption(f"Initial {b['initial_lb']:,.0f} lb · later {b['later_lb']:,.0f} lb")
-        m2.metric("Scenario total", f"{s_['total_lb']:,.0f} lb")
-        m2.caption(f"Initial {s_['initial_lb']:,.0f} lb · later {s_['later_lb']:,.0f} lb")
-        m3.metric("MATERIAL AVOIDED", f"{av:,.0f} lb",
-                  help="Baseline total minus scenario total. Negative means the scenario uses more material.")
+        m1.metric("Baseline total", f"{bt['total_lb']:,.0f} lb", help="Initial + later applications, illustrative baseline")
+        m1.caption(f"Initial {bt['initial_lb']:,.0f} lb · later {bt['later_lb']:,.0f} lb")
+        m2.metric("Comparison total", f"{ct['total_lb']:,.0f} lb", help="Scenario plan plus any hypothetical additional applications")
+        m2.caption(f"Initial {ct['initial_lb']:,.0f} · later {ct['later_lb']:,.0f} · additional {ct['additional_lb']:,.0f} lb")
+        m3.metric("MATERIAL DIFFERENCE", _signed(imp["difference_lb"], imp["difference_pct"]),
+                  help="Comparison total minus baseline total, as a percentage of the baseline. Positive means the comparison uses more salt.")
         if unresolved:
-            m3.caption(f"INCOMPLETE: {len(unresolved)} later need(s) not included yet — see below and the sensitivity cases.")
-        m3.caption("Scenario uses MORE material than the baseline." if av < 0 else
-                   ("No difference in total material." if av == 0 else f"{res['material_avoided_short_tons']:.2f} US short tons (simulated)"))
-        if res["cost"]:
-            m4.metric("Cost difference", f"${res['cost']['cost_difference']:,.0f}")
-            m4.caption(f"At an assumed ${res['cost']['price_per_short_ton']:,.0f} per short ton")
+            m3.caption(f"INCOMPLETE: {len(unresolved)} later need(s) not included yet — see below and the sensitivity.")
+        m3.caption(imp["text"] + ".")
+        if imp["cost"]:
+            m4.metric("Cost difference", f"${imp['cost']['cost_difference']:,.0f}")
+            m4.caption(f"Baseline minus comparison, at an assumed ${imp['cost']['price_per_short_ton']:,.0f} per short ton")
         else:
             m4.metric("Cost difference", "Unavailable")
             m4.caption("Enter a salt price to calculate.")
 
+        st.markdown(f'<div class="sw-rule-note"><b>{impact.QUALIFICATION}</b> {impact.OUTCOME_NOTE} Totals count every application '
+                    'inside the accounting window, including later, repeat, catch-up and additional applications.</div>',
+                    unsafe_allow_html=True)
+
         st.markdown('<div class="sw-section">ASSUMPTIONS IN THIS COMPARISON · LAST APPLIED</div>', unsafe_allow_html=True)
-        rows = assumption_rows(inp, window, b, s_, views, _data_label(rec if anchored else None))
-        for col, half in zip(st.columns(2), (rows[:4], rows[4:])):
-            col.markdown(html_table(half, ["Assumption", "In this comparison", "Kind"]), unsafe_allow_html=True)
+        rows = assumption_rows(inp, window, b, s_, views, _data_label(rec if anchored else None), anchored)
+        for col, half in zip(st.columns(2), (rows[:5], rows[5:])):
+            col.markdown(html_table(half, ["Assumption", "In this comparison", "Kind", "Evidence"]), unsafe_allow_html=True)
 
         if unresolved:
             items = "".join(f"<li><b>{next(x[1] for x in scenarios.LOCATIONS if x[0] == u['location_id'])}</b> — "
@@ -244,35 +307,30 @@ def render(get_view, window_key_default="overnight"):
                        + ", ".join(f"{o['location_id']} {o['kind']} {_fmt(o['time'])}"
                                    for o in res["baseline"]["outside_window"] + res["scenario"]["outside_window"]))
 
-        bars = pd.DataFrame([{"plan": p, "part": part, "lb": res[k][f"{part}_lb"]}
-                             for p, k in (("Baseline (illustrative)", "baseline"), ("Scenario", "scenario"))
-                             for part in ("initial", "later")])
+        bars = pd.DataFrame([{"plan": p, "part": part, "lb": imp["totals"][k][f"{part}_lb"]}
+                             for p, k in (("Baseline (illustrative)", "baseline"), ("Comparison", "comparison"))
+                             for part in ("initial", "later", "additional")])
         chart(alt.Chart(bars).mark_bar(cornerRadiusEnd=4).encode(
-            y=alt.Y("plan:N", title=None, sort=["Baseline (illustrative)", "Scenario"], axis=alt.Axis(labelColor=TOKENS["text"])),
+            y=alt.Y("plan:N", title=None, sort=["Baseline (illustrative)", "Comparison"], axis=alt.Axis(labelColor=TOKENS["text"])),
             x=alt.X("sum(lb):Q", title="Material over the whole window (lb, simulated)",
                     axis=alt.Axis(labelColor=TOKENS["muted"], titleColor=TOKENS["muted"])),
-            color=alt.Color("part:N", scale=alt.Scale(domain=["initial", "later"], range=[TOKENS["accent"], TOKENS["air"]]),
+            color=alt.Color("part:N", sort=["initial", "later", "additional"],
+                            scale=alt.Scale(domain=["initial", "later", "additional"], range=[TOKENS["accent"], TOKENS["air"], TOKENS["muted"]]),
                             legend=alt.Legend(orient="bottom", title=None, labelColor=TOKENS["text"],
-                                              labelExpr="datum.label == 'initial' ? 'Initial applications' : 'Later / repeat / catch-up'")),
+                                              labelExpr="datum.label == 'initial' ? 'Initial applications' : datum.label == 'later' ? "
+                                                        "'Later / repeat / catch-up' : 'Additional (hypothetical)'")),
+            order=alt.Order("order:Q"),
             tooltip=["plan:N", "part:N", alt.Tooltip("lb:Q", format=",.0f")])
-            .properties(height=alt.Step(44), width="container",
-                        title=alt.Title("Baseline vs. scenario — total material", color=TOKENS["text"], anchor="start"))
+            .transform_calculate(order="datum.part == 'initial' ? 0 : datum.part == 'later' ? 1 : 2")
+            .properties(height=alt.Step(44), width="container", padding={"left": 4, "top": 4, "bottom": 4, "right": 28},
+                        autosize=alt.AutoSizeParams(type="fit-x", contains="padding"),
+                        title=alt.Title("Baseline vs. comparison — total material over the whole window", color=TOKENS["text"], anchor="start"))
             .configure(background="transparent").configure_view(strokeWidth=0).configure_axis(gridColor=TOKENS["grid"]))
 
-    st.markdown('<div class="sw-section">SENSITIVITY · INITIAL PLAN HELD FIXED, LATER NEED VARIED (HYPOTHETICAL)</div>',
-                unsafe_allow_html=True)
-    srows = [{"Case": c["case"], "Initial": f"{c['initial_lb']:,.0f} lb", "Later": f"{c['later_lb']:,.0f} lb",
-              "Scenario total": f"{c['scenario_total_lb']:,.0f} lb", "Material avoided": f"{c['material_avoided_lb']:,.0f} lb"}
-             for c in sens]
-    st.markdown(html_table(srows, ["Case", "Initial", "Later", "Scenario total", "Material avoided"]), unsafe_allow_html=True)
-    chart(alt.Chart(pd.DataFrame([{"case": c["case"].split(" (")[0], "avoided": c["material_avoided_lb"]} for c in sens]))
-          .mark_bar(cornerRadiusEnd=4, color=TOKENS["accent"]).encode(
-              y=alt.Y("case:N", sort=None, title=None, axis=alt.Axis(labelColor=TOKENS["text"], labelLimit=260)),
-              x=alt.X("avoided:Q", title="Material avoided vs. baseline (lb; negative = more material)",
-                      axis=alt.Axis(labelColor=TOKENS["muted"], titleColor=TOKENS["muted"])),
-              tooltip=["case:N", alt.Tooltip("avoided:Q", format=",.0f")])
-          .properties(height=alt.Step(36), width="container").configure(background="transparent").configure_view(strokeWidth=0)
-          .configure_axis(gridColor=TOKENS["grid"]))
+    page_media.band("stormlab_snowplow", "A snowplow clearing a snow-covered city street in Kyiv, Ukraine (not DC)", key="sl_media_plow",
+                    note="Illustrative clip: a snowplow on Pozharskoho Street, Kyiv, Ukraine (not DC). Not DC practice or a "
+                         "simulation result.", scale=1.2, pos="50% 22%")
+    _sensitivity_panel(isens)
 
     prow = [{"Location": name,
              "Lane-miles (assumed)": f"{inp['lane_miles'][lid]:g}",
@@ -283,9 +341,13 @@ def render(get_view, window_key_default="overnight"):
             for lid, name, *_ in scenarios.LOCATIONS]
     with st.expander("Per-location breakdown (initial + later)"):
         st.markdown(html_table(prow, ["Location", "Lane-miles (assumed)", "Baseline", "Scenario", "Evidence"]), unsafe_allow_html=True)
+        st.caption(f"Additional applications (hypothetical, not assigned to a location): {imp['additional']['count']:g} × "
+                   f"{impact.lane_miles_text(imp['additional']['lane_miles_each'])} = {imp['additional']['lb']:,.0f} lb in the comparison.")
     cov = storm_snapshot.coverage_vs_window(rec, window) if rec else None
     if rec:
         _coverage_panel(cov, anchored)
+    if not anchored:
+        _focus_panel(views)
     rd = _readiness_panel(inp, window)
 
     export = {"schema": "saltwise-storm-lab/1", "source_mode": "synthetic_fixture", "labels": sc.STORM_LABELS,
@@ -293,6 +355,24 @@ def render(get_view, window_key_default="overnight"):
                                                            "salt_price_per_short_ton": inp["price"] or None,
                                                            "baseline_note": "illustrative editable baseline, not DC practice"},
               "plans": inp["plans"], "results": res, "sensitivity": sens, "unresolved_requirements": unresolved,
+              "impact": {"calculation_version": impact.CALC_VERSION,
+                         "question": "How does total salt use change across the whole storm, and how much additional treatment "
+                                     "would erase the modeled reduction?",
+                         "qualification": impact.QUALIFICATION, "outcome_note": impact.OUTCOME_NOTE,
+                         "illustrative_example": {"id": impact.EXAMPLE_ID, "assumptions": impact.EXAMPLE_TEXT} if is_example else None,
+                         "applied_inputs": impact.input_status(inp, window, anchored, rec["snapshot_id"] if rec else None),
+                         "schedules": impact.schedules(inp, window), "totals_lb": imp["totals"],
+                         "difference": {"difference_lb": imp["difference_lb"], "difference_pct": imp["difference_pct"], "text": imp["text"],
+                                        "meaning": "comparison total - baseline total; positive = the comparison uses more salt"},
+                         "cost": imp["cost"], "sensitivity": isens,
+                         "formulas": {"material_per_application": "lane_miles x rate",
+                                      "additional": "count x lane_miles_each x rate, counted inside the accounting window",
+                                      "difference": "comparison total - baseline total",
+                                      "difference_pct": "difference / baseline total x 100 (unavailable when the baseline is 0 lb)"},
+                         "not_established": ["operational savings", "equivalent road service", "safety outcomes",
+                                             "chloride runoff or other environmental outcomes"],
+                         "scope_note": "'results' covers the per-location plans only and 'sensitivity' keeps the earlier gap-based "
+                                       "cases; 'impact' adds the hypothetical additional applications shown on the page."},
               "formulas": {"material_per_application": "lane_miles x rate", "total": "sum of applications in window",
                            "material_avoided": "baseline total - scenario total"},
               "disclaimer": "Simulation only; does not predict safety, chloride runoff, or deployment outcomes.",
@@ -303,13 +383,49 @@ def render(get_view, window_key_default="overnight"):
                                        "synthetic pavement scenario, locations, rates, application counts or results."}
     st.download_button("Download Storm Lab inputs and results (JSON)", json.dumps(export, indent=2),
                        file_name="saltwise_storm_lab.json", mime="application/json", key="storm_download")
-    st.session_state["storm_state"] = {"baseline_total": b["total_lb"], "scenario_total": s_["total_lb"],
+    st.session_state["storm_state"] = {"baseline_total": bt["total_lb"], "scenario_total": ct["total_lb"],
                                        "scenario_initial": s_["initial_lb"], "scenario_later": s_["later_lb"],
-                                       "avoided": av, "cost": res["cost"], "unresolved": len(unresolved),
+                                       "additional_lb": ct["additional_lb"], "difference_lb": imp["difference_lb"],
+                                       "difference_pct": imp["difference_pct"], "example": is_example,
+                                       "one_way_difference": [p["difference_lb"] for p in isens["points"]],
+                                       "avoided": -imp["difference_lb"], "cost": imp["cost"], "unresolved": len(unresolved),
                                        "sensitivity_avoided": [c["material_avoided_lb"] for c in sens],
                                        "window_hours": hours, "export": export, "anchor": inp.get("anchor", "scenario"),
                                        "snapshot_id": rec["snapshot_id"] if rec else None, "readiness_status": rd["status"]}
 
+
+
+def _sensitivity_panel(isens):
+    """One-way sensitivity: only the number of additional applications varies; the zero-difference point is marked."""
+    st.markdown('<div class="sw-section">SENSITIVITY · ONE-WAY · ADDITIONAL APPLICATIONS VARIED, EVERYTHING ELSE HELD FIXED</div>',
+                unsafe_allow_html=True)
+    per, zero = isens["per_additional_application"], isens["zero_difference_at"]
+    st.markdown(f'<div class="sw-rule-note">Does later treatment erase the initial reduction? This one-way analysis adds 0–'
+                f'{isens["range"][1]} hypothetical applications of {impact.lane_miles_text(per["lane_miles"])} × {per["rate_lb_per_lane_mile"]:g} lb '
+                f'per lane-mile ({per["lb"]:,.0f} lb each), counted inside the same accounting window, and holds every other applied '
+                f'input fixed. {isens["zero_difference_note"]}</div>', unsafe_allow_html=True)
+    pts = isens["points"]
+    st.markdown(html_table([{"Additional applications": p["additional_applications"], "Comparison total": f"{p['comparison_total_lb']:,.0f} lb",
+                             "Difference vs. baseline": _signed(p["difference_lb"], p["difference_pct"]), "Reading": p["text"]}
+                            for p in pts], ["Additional applications", "Comparison total", "Difference vs. baseline", "Reading"]),
+                unsafe_allow_html=True)
+    df = pd.DataFrame([{"n": p["additional_applications"], "diff": p["difference_lb"]} for p in pts])
+    x = alt.X("n:Q", title="Additional applications (count)", scale=alt.Scale(domain=isens["range"]),
+              axis=alt.Axis(tickMinStep=1, format="d", labelColor=TOKENS["muted"], titleColor=TOKENS["muted"]))
+    y = alt.Y("diff:Q", title="Comparison − baseline (lb); below 0 = less salt",
+              axis=alt.Axis(labelColor=TOKENS["muted"], titleColor=TOKENS["muted"]))
+    layers = [alt.Chart(pd.DataFrame({"diff": [0]})).mark_rule(color=TOKENS["muted"], strokeDash=[4, 4]).encode(y="diff:Q"),
+              alt.Chart(df).mark_line(color=TOKENS["accent"]).encode(x=x, y=y),
+              alt.Chart(df).mark_point(filled=True, size=70, color=TOKENS["accent"]).encode(
+                  x=x, y=y, tooltip=[alt.Tooltip("n:Q", title="Additional applications"), alt.Tooltip("diff:Q", title="Difference (lb)", format="+,.0f")])]
+    if zero is not None:
+        z = pd.DataFrame({"n": [zero], "diff": [0.0], "label": [f"zero difference at {zero:g}"]})
+        layers += [alt.Chart(z).mark_point(shape="diamond", filled=True, size=160, color=TOKENS["air"]).encode(x=x, y=y),
+                   alt.Chart(z).mark_text(align="left", dx=10, dy=-12, color=TOKENS["text"], fontSize=13).encode(x=x, y=y, text="label:N")]
+    chart(alt.layer(*layers).properties(height=260, width="container", padding={"left": 4, "top": 4, "bottom": 4, "right": 28},
+                                        autosize=alt.AutoSizeParams(type="fit-x", contains="padding"),
+                                        title=alt.Title("Material difference as additional applications are added", color=TOKENS["text"], anchor="start"))
+          .configure(background="transparent").configure_view(strokeWidth=0).configure_axis(gridColor=TOKENS["grid"]))
 
 
 def _anchor_time(anchor, rec):
@@ -382,11 +498,52 @@ def _coverage_panel(cov, anchored):
     st.markdown(html_table(rows, ["Location", "Pavement (returned horizon only)", "Air (NWS forecast)"]), unsafe_allow_html=True)
 
 
+FOCUS = "benning_rd_bridge"          # carries the "near_freezing_mixed" synthetic profile (scenarios.py)
+
+
+def focus_rows(view):
+    """Hour-by-hour sequence of the near-freezing, changing-precipitation scenario, as shown (synthetic, °F)."""
+    by = {}
+    for s in view["series"]:
+        for p in s["points"]:
+            r = by.setdefault(sc.dt(p["valid_start"]), {})
+            if s["quantity"] == "pavement_temperature" and s["kind"] == "modeled":
+                r["pav"], r["surface"] = p.get("value"), p.get("surface_condition")
+            elif s["quantity"] == "air_temperature":
+                r["air"] = p.get("value")
+            elif s["quantity"] == "precipitation":
+                r["precip"] = p.get("description")
+    concerns = {sc.dt(r["valid_start"]): ", ".join(sc.FLAG_TITLES[c] for c in r["concerns"]) for r in view["review_periods"]}
+    return [{"Time (synthetic)": _fmt(t), "Precipitation (scenario text)": r.get("precip") or "—",
+             "Air (°F)": f"{r['air']:.0f}" if r.get("air") is not None else "Unavailable",
+             "Pavement (°F)": f"{r['pav']:.1f}" if r.get("pav") is not None else "Unavailable",
+             "Surface": r.get("surface") or "Unavailable", "Review concerns": concerns.get(t, "—")}
+            for t, r in sorted(by.items()) if "pav" in r]
+
+
+def _focus_panel(views):
+    """The synthetic 'Near-freezing, changing precipitation' scenario behind the comparison, labeled illustrative."""
+    name = next(x[2] for x in scenarios.LOCATIONS if x[0] == FOCUS)
+    label = scenarios.PROFILE_LABEL[next(x[4] for x in scenarios.LOCATIONS if x[0] == FOCUS)]
+    with st.expander(f"Scenario focus: {label} · {name} · SYNTHETIC, illustrative"):
+        st.markdown('<div class="sw-banner">SYNTHETIC SCENARIO — every time, temperature, precipitation type, surface state and '
+                    'treatment choice here is invented for illustration. It is not DC data or a forecast.</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="sw-rule-note">{dpw_feedback.SCENARIO_WHY}</div>', unsafe_allow_html=True)
+        cols = ["Time (synthetic)", "Precipitation (scenario text)", "Air (°F)", "Pavement (°F)", "Surface", "Review concerns"]
+        st.markdown(html_table(focus_rows(views[FOCUS]), cols), unsafe_allow_html=True)
+        st.markdown(f"**Compare it with the controls above.** Under *Lane-miles and application times*, try {name} with an "
+                    "initial application before the rain against one after the rain ends, then add a later application after the "
+                    "snow. Totals count every application inside the accounting window; a possible need after the scenario's last "
+                    "application is listed above as unresolved, which makes the comparison incomplete.")
+        st.markdown("<ul>" + "".join(f"<li>{x}</li>" for x in dpw_feedback.SCENARIO_RULES) + "</ul>", unsafe_allow_html=True)
+
+
 def _readiness_panel(inp, window):
     """Small deterministic readiness check from values a person supplies; incomplete until every needed value and unit is given."""
     rounds = readiness.rounds_from_plan(inp["plans"]["scenario"], inp["lane_miles"], inp["rate"], window)
     with st.expander("Readiness check · deterministic · your supplied assumptions only"):
         st.caption(readiness.SCOPE)
+        st.markdown(f'<div class="sw-rule-note">{dpw_feedback.READINESS_CONTEXT}</div>', unsafe_allow_html=True)
         with st.form("readiness_form", border=False):
             cols, vals = st.columns(2), {}
             for i, (name, kind, required, label) in enumerate(readiness.FIELDS):

@@ -74,7 +74,7 @@ def _freshness(fx, provider, E, w_end):
 
     def ev(policy):
         return {key: freshness.evaluate(policy, src, x.get("issued_utc"), x.get("retrieved_utc"),
-                                        (x.get("returned_coverage_utc") or {}).get("to"), E, w_end) if x.get("used_in_view") else None
+                                        (x.get("returned_coverage_utc") or {}).get("to"), E, w_end, x.get("content_first_seen_utc")) if x.get("used_in_view") else None
                 for key, x, src in (("pavement", p, "xweather_pavement"), ("air", a, "nws_air"))}
     res = ev(freshness.active_policy())
     res["proposal_preview"] = {**ev(freshness.PROPOSAL),

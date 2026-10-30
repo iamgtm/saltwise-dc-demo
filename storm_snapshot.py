@@ -9,6 +9,7 @@ import json
 from datetime import timedelta
 
 import evidence_snapshot as es
+import freshness
 import saltwise_contract as sc
 
 
@@ -56,7 +57,7 @@ def views(rec, snap, units, hours, start=None):
     for lid in snap["locations"]:
         fx, _ = es.fixture(snap, lid, at)
         out[lid] = sc.build_view(fx, {"units": units, "mode": "live", "source_mode": "provider", "evaluation_time": fx["evaluation_time"],
-                                      "window_hours": hours, "freshness_limits": es.FRESHNESS_PENDING})
+                                      "window_hours": hours, "freshness_limits": freshness.contract_limits() or es.FRESHNESS_PENDING})
     return out
 
 
@@ -84,11 +85,17 @@ def coverage_vs_window(rec, window):
 
 
 def rows(rec):
+    selected = es._dt(rec["selected_at_utc"])
+
     def cell(x):
         if not x["used"]:
             return x.get("withheld_reason") or "Not used"
-        to = ((x.get("coverage_utc") or {}).get("to") or "?")[:16].replace("T", " ")
-        return f"Retrieved {x['retrieved_utc'][:16].replace('T', ' ')} UTC · issue time {x['issue_time']} · covers until {to} UTC"
+        end = (x.get("coverage_utc") or {}).get("to")
+        to = (end or "?")[:16].replace("T", " ")
+        text = f"Retrieved {x['retrieved_utc'][:16].replace('T', ' ')} UTC · issue time {x['issue_time']} · covers until {to} UTC"
+        if end and es._dt(end) <= selected:          # every returned period ended before this snapshot was selected
+            text += " · historical: ended before this snapshot, so no usable coverage for a current window"
+        return text
 
     def sentence(t):
         # One sentence per item, ending in exactly one terminal mark (no ".;" or "..").

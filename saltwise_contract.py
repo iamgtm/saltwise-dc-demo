@@ -9,6 +9,9 @@ import math
 import os
 import re
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+import freshness as fp
 
 CONTRACT_VERSION = "1"
 CAPABILITIES = {"stage_b": True, "review_flags": True, "storm_lab": True}
@@ -76,27 +79,39 @@ def _air(fx, settings, E, loc_id):
             rows.append((s, e, convert_c_to_f(v["value"]) if "degC" in source_unit else v["value"]))
     else:
         return None, None, None
-    # lim None: freshness limits are pending user review, so age is shown but never judged (ended periods still drop).
-    stale = lim is not None and update is not None and (E - dt(update)) > timedelta(hours=lim)
-    fresh = "stale" if stale else ("current" if lim is not None else "not_judged")
+    # Shared policy (freshness.py). No settings: not assessed, ages shown. Inconsistent timestamps or an age beyond the hard
+    # limit: values excluded from current views and review inputs, kept in the withheld record. Ended periods always drop.
+    a = fp.evaluate(fp.policy_from_limits(settings["freshness_limits"]), "nws_air", update, fx.get("nws_retrieved_at"), None, E,
+                    first_seen_utc=fx.get("nws_content_first_seen"), provider_record=settings.get("source_mode") == "provider")
+    fresh, cut = a["contract_status"], a["exclude"]
     keep = lambda s, e: e > E and s < E + timedelta(hours=72)  # noqa: E731
     src = SOURCES[settings.get("source_mode", "provider")]["air"]
+    pts = [{"valid_start": s.isoformat(), "valid_end": e.isoformat(), "value": _disp(tf, units),
+            "kind": "provider_forecast", "freshness": fresh} for s, e, tf in rows if keep(s, e)]
+    ppts = [{"valid_start": s.isoformat(), "valid_end": e.isoformat(), "value": pop, "description": d,
+             "kind": "provider_forecast", "freshness": fresh} for s, e, pop, d in precip if keep(s, e)]
     air = {"location_id": loc_id, "quantity": "air_temperature", "source": src,
            "kind": "provider_forecast", "unit": units, "source_unit": source_unit, "style": "solid-air",
-           "points": [{"valid_start": s.isoformat(), "valid_end": e.isoformat(), "value": _disp(tf, units),
-                       "kind": "provider_forecast", "freshness": fresh} for s, e, tf in rows if keep(s, e)]}
+           "points": [] if cut else pts}
     pr = None
     if precip:
         pr = {"location_id": loc_id, "quantity": "precipitation", "source": src,
               "kind": "provider_forecast", "unit": "%", "source_unit": "wmoUnit:percent", "style": "bars",
-              "points": [{"valid_start": s.isoformat(), "valid_end": e.isoformat(), "value": pop, "description": d,
-                          "kind": "provider_forecast", "freshness": fresh} for s, e, pop, d in precip if keep(s, e)]}
-    msg = (f"Air forecast last updated {update}; older than the {lim} h fixture-only freshness limit - treat with caution."
-           if stale else f"Air forecast issued {update}.")
-    if lim is None:
+              "points": [] if cut else ppts}
+    kind = "approved" if settings.get("source_mode") == "provider" else "fixture-only"
+    if a["reason_code"] == "over_hard_limit":
+        msg = f"Air forecast last updated {update}; older than the {lim} h {kind} freshness limit, so its values are excluded."
+    elif a["reason_code"] == "not_assessed":
         msg = ((f"Air forecast updated {update} (NWS updateTime)." if update else "Air forecast issue time not supplied by provider.")
                + " Freshness limits are pending review: age is shown, not judged.")
-    return air, pr, {"quantity": "air_temperature", "status": fresh, "message": msg}
+    else:
+        msg = fp.describe(a, "Air forecast")
+    fr = {"quantity": "air_temperature", "status": fresh, "message": msg, "reason_code": a["reason_code"], "assessment": a}
+    if cut:
+        fr["excluded"] = {"quantity": "air_temperature", "status": fresh, "reason_code": a["reason_code"], "expired_after": None,
+                          "reason": msg + " Values are excluded from current charts, summaries and review inputs; the road stays "
+                                          "in assumed service.", "excluded_points": pts, "excluded_precipitation_points": ppts}
+    return air, pr, fr
 
 
 def _simulated(loc_id, units, start, hours, quantity="pavement_temperature"):
@@ -108,6 +123,12 @@ def _simulated(loc_id, units, start, hours, quantity="pavement_temperature"):
                     "value": _disp(tf, units), "kind": "simulation", "freshness": "unknown"})
     return {"location_id": loc_id, "quantity": quantity, "source": "SaltWise simulation (illustrative, not a forecast)",
             "kind": "simulation", "unit": units, "source_unit": "F", "style": "dashed-simulation", "points": pts}
+
+
+def _pav_ids(fx, start):
+    """Stored evidence ids for one pavement period (saved provider snapshots only; None for fixtures)."""
+    by, t = (fx.get("evidence_ids") or {}).get("by_start") or {}, dt(start)
+    return sorted(i for (var, s), i in by.items() if "road" in var.lower() and dt(s) == t) or None
 
 
 def build_view(fx, settings):
@@ -126,6 +147,8 @@ def build_view(fx, settings):
     if air:
         series.append(air)
         freshness.append(fr)
+        if fr.get("excluded"):
+            withheld.append(fr.pop("excluded"))
         text.append(fr["message"])
         if air["points"]:
             coverage["air"]["last_period_start"] = air["points"][-1]["valid_start"]
@@ -170,17 +193,33 @@ def build_view(fx, settings):
                                     "end_reason": "Provider pavement forecast ends here (documented horizon up to 24 h); "
                                                   "later periods are unavailable, not extrapolated."}
             lim = settings["freshness_limits"].get("xweather_pavement_max_age_hours")
-            too_old = lim is not None and fx.get("retrieved_at") and (E - dt(fx["retrieved_at"])) > timedelta(hours=lim)
-            current = [] if too_old else [(p, e) for p, e in zip(per, ends) if e > E]
+            pa = fp.evaluate(fp.policy_from_limits(settings["freshness_limits"]), "xweather_pavement", None, fx.get("retrieved_at"),
+                             None, E, first_seen_utc=fx.get("pavement_content_first_seen"), provider_record=settings.get("source_mode") == "provider")
+            current = [] if pa["exclude"] else [(p, e) for p, e in zip(per, ends) if e > E]
             n_ended = sum(1 for e in ends if e <= E)
             if current and n_ended:
                 checks.append({"id": "ended_periods_withheld", "status": "info",
                                "message": f"{n_ended} pavement period(s) whose valid time had ended were withheld."})
             if per and not current:
-                withheld.append({"quantity": "pavement_temperature", "expired_after": max(ends).isoformat(),
-                                 "reason": f"Pavement forecast expired: its valid periods ended at {max(ends).isoformat()}. "
-                                           "Withheld from the current view; refresh within request caps."})
-                freshness.append({"quantity": "pavement_temperature", "status": "expired", "message": withheld[-1]["reason"]})
+                code = pa["reason_code"] if pa["exclude"] else "valid_period_ended"
+                why = {"inconsistent_timestamps": f"Pavement forecast timestamps are inconsistent ({'; '.join(pa['timestamp_problems'])}). ",
+                       "over_hard_limit": f"Pavement forecast is older than the {lim} h freshness limit ({pa['age_note']}). ",
+                       "age_unknown": "Pavement forecast age cannot be bounded (no usable retrieval, first-seen or issue time). ",
+                       "valid_period_ended": f"Pavement forecast expired: its valid periods ended at {max(ends).isoformat()}. "}[code]
+                withheld.append({"quantity": "pavement_temperature", "expired_after": max(ends).isoformat(), "reason_code": code,
+                                 "reason": why + "Withheld from the current view; the road stays in assumed service; refresh within "
+                                                 "request caps."})
+                if pa["exclude"]:
+                    # Excluded periods (not yet ended) stay in the withheld record and export with valid times, evidence ids and
+                    # the reason; they never enter current charts, readouts or review inputs.
+                    withheld[-1].update(status=pa["contract_status"], source=pav_src, excluded_points=[
+                        {"valid_start": p["dateTimeISO"], "valid_end": e.isoformat(), "unit": units, "kind": "modeled",
+                         "value": _disp(p["roadSurface"]["tempF"], units) if (p.get("roadSurface") or {}).get("tempF") is not None else None,
+                         "surface_condition": (p.get("roadSurface") or {}).get("condition"), "evidence_ids": _pav_ids(fx, p["dateTimeISO"]),
+                         "freshness": pa["contract_status"], "reason_code": code} for p, e in zip(per, ends) if e > E])
+                freshness.append({"quantity": "pavement_temperature", "message": withheld[-1]["reason"], "reason_code": code,
+                                  "assessment": pa, "status": {"inconsistent_timestamps": "unknown", "over_hard_limit": "stale", "age_unknown": "unknown",
+                                                               "valid_period_ended": "expired"}[code]})
                 text.append(withheld[-1]["reason"])
             else:
                 pts = []
@@ -196,7 +235,7 @@ def build_view(fx, settings):
                         checks.append({"id": "unit_consistency", "status": "warn",
                                        "message": f"Provider tempC {rs['tempC']} and tempF {rs['tempF']} disagree at {p['dateTimeISO']}."})
                     pts.append({"valid_start": p["dateTimeISO"], "valid_end": e.isoformat(),
-                                "value": _disp(rs["tempF"], units), "kind": "modeled", "freshness": "current",
+                                "value": _disp(rs["tempF"], units), "kind": "modeled", "freshness": pa["contract_status"],
                                 "surface_condition": rs["condition"], "_f": rs["tempF"]})
                 pav_pts = [dict(q) for q in pts if q["value"] is not None]
                 for q in pts:
@@ -205,11 +244,8 @@ def build_view(fx, settings):
                                "source": pav_src, "kind": "modeled",
                                "unit": units, "source_unit": "F/C (roadSurface.tempF/tempC)", "style": "solid-pavement",
                                "points": pts})
-                freshness.append({"quantity": "pavement_temperature", "status": "current", "message": "Pavement forecast current."}
-                                 if lim is not None else
-                                 {"quantity": "pavement_temperature", "status": "not_judged",
-                                  "message": "Pavement periods still inside their valid time are shown; ended periods are withheld. "
-                                             "Freshness limit pending review."})
+                freshness.append({"quantity": "pavement_temperature", "status": pa["contract_status"], "reason_code": pa["reason_code"],
+                                  "message": fp.describe(pa, "Pavement forecast"), "assessment": pa})
                 gaps.append({"quantity": "pavement_temperature", "valid_start": last_start.isoformat(),
                              "reason": "Beyond the provider's returned pavement horizon: unavailable (not extrapolated)."})
                 text.append(coverage["pavement"]["end_reason"])
@@ -252,6 +288,12 @@ def build_view(fx, settings):
         text.insert(0, "Synthetic scenario - illustrative weather, not a live forecast. No weather provider was contacted.")
     w_end_iso = (E + timedelta(hours=window_hours)).isoformat() if window_hours else None
     flags, review_periods, notes = review(series, gaps, withheld, freshness, units, coverage, settings["evaluation_time"], w_end_iso)
+    pav_fr = next((f for f in freshness if f.get("quantity") == "pavement_temperature" and f.get("assessment")), None)
+    if pav_fr and not pav_fr["assessment"]["confirmed_fresh"] and settings.get("source_mode") == "provider":
+        # provider pavement with an unknown issue time: precautionary prompts only (synthetic scenarios have no issue time)
+        for f in flags:
+            if any(e.get("kind") == "modeled" for e in f.get("evidence") or []):
+                f["evidence_qualification"] = fp.UNCONFIRMED_PROMPT
     for f in flags:
         text += [f["reason"], f["next_step"]]
     text += notes
@@ -279,8 +321,13 @@ RULE_TAIL = (" Illustrative review rule, not an approved operational policy; "
              "people make the treatment decision.")
 
 
+DISPLAY_TZ = ZoneInfo("America/New_York")
+
+
 def _when(iso):
-    return dt(iso).strftime("%a %-I:%M %p")
+    """DC local time, as on the chart: provider times are UTC; the synthetic fixtures already carry -05:00 (unchanged)."""
+    d = dt(iso)
+    return (d.astimezone(DISPLAY_TZ) if d.tzinfo else d).strftime("%a %-I:%M %p")
 
 
 def review(series, gaps, withheld, freshness, units, coverage, now_iso, window_end_iso=None):
@@ -370,13 +417,17 @@ def review(series, gaps, withheld, freshness, units, coverage, now_iso, window_e
             break
     issues += [g["reason"].rstrip(".") for g in gaps if g["quantity"] == "air_temperature" and g.get("withheld")]
     for w in withheld:
-        issues.append(f"the pavement forecast expired at {_when(w['expired_after'])} and is withheld")
-    for f in freshness:
-        if f["status"] in ("stale", "expired") and f["quantity"] == "air_temperature":
-            issues.append("the air forecast is older than the freshness setting")
+        q = "air" if w.get("quantity") == "air_temperature" else "pavement"
+        issues.append({"over_hard_limit": f"the {q} forecast is older than the freshness setting, so its values are excluded",
+                       "inconsistent_timestamps": f"the {q} forecast timestamps are inconsistent, so its values are excluded",
+                       "age_unknown": f"the {q} forecast has no usable retrieval, first-seen or issue time, so its age cannot be "
+                                      "bounded and its values are excluded"}
+                      .get(w.get("reason_code")) or f"the pavement forecast expired at {_when(w['expired_after'])} and is withheld")
     cov_last = (coverage.get("pavement") or {}).get("last_period_start")
     if window_end_iso and cov_last and dt(cov_last) + timedelta(hours=1) < dt(window_end_iso):
-        issues.append(f"the selected window runs past the pavement series, which ends {_when(cov_last)}")
+        ends = [p["valid_end"] for x in series if x["quantity"] == "pavement_temperature" for p in x["points"]
+                if p.get("value") is not None and p.get("valid_end")]          # the series' own end, as on the chart
+        issues.append(f"the selected window runs past the pavement series, which ends {_when(max(ends, key=dt) if ends else cov_last)}")
     if issues:
         for t in times:
             periods.setdefault(t, {"point": {"valid_start": t, "value": None, "surface_condition": None},

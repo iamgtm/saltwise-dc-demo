@@ -1,0 +1,47 @@
+{
+ "_note": "Public demo subset of the project configuration: the user-approved freshness policy and the weather-request caps only. Live weather requests are disabled in this build (demo_config.py).",
+ "caps": {
+  "weather_requests": {
+   "all_providers_max_per_run": 20,
+   "all_providers_max_per_day": 100,
+   "xweather_max_per_run": 5,
+   "xweather_max_per_day": 20,
+   "daily_counter_timezone": "America/New_York",
+   "provider_allowance_cycle_timezone": "UTC",
+   "count": [
+    "validation_calls",
+    "retries",
+    "tests",
+    "manual_refreshes",
+    "background_requests",
+    "batch_or_route_constituents"
+   ],
+   "xweather_roadweather_conditions_access_multiplier": 5,
+   "use_cost_header_when_available": "X-Cost-Tokens",
+   "stop_before_exceeding_included_allowance_or_creating_charge": true,
+   "paid_fallback": false
+  }
+ },
+ "data_policy": {
+  "freshness_limits": {
+   "status": "APPROVED by the user 2026-10-26 (America/New_York): proposal-2026-10-26.3, provisional engineering settings for the supervised student prototype, not agency-approved treatment rules; changing requires review",
+   "policy_version": "proposal-2026-10-26.3",
+   "units": "hours",
+   "nws_air_forecast_warn_age_hours": 6,
+   "nws_air_forecast_max_age_hours": 12,
+   "xweather_pavement_warn_age_hours": 2,
+   "xweather_pavement_max_age_hours": 6,
+   "rwis_observation_max_age_minutes": null,
+   "clock_tolerance_minutes": 5,
+   "clock_tolerance_basis": "engineering assumption (clock skew), not a provider value",
+   "always_expired": "any period whose valid interval has ended",
+   "user_decision": {
+    "approved": true,
+    "decided_by": "user",
+    "date": "2026-10-26",
+    "policy_version": "proposal-2026-10-26.3",
+    "settings_sha256": "64c66aad1725171315c25115e4e5c0a4ac96695bf35a7aa94c48d3c4d92099d4"
+   }
+  }
+ }
+}

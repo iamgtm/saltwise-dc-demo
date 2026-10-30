@@ -36,20 +36,20 @@ INTRO = {
 
 SLIDES = [
     {"id": "home", "tab": "Home", "headline": "Less avoidable salt. More informed winter planning.",
-     "text": "SaltWise helps plan winter road treatment so salt goes where it helps. People make every treatment decision.",
+     "text": "A sustainability planning layer beside DC’s existing forecasts and deployment plans. People make every treatment decision.",
      "features": ["Sustainability first", "People decide", "Simulated scenarios"],
      "button": "Explore Storm Lab", "target": "storm", "media": "home_dc_city",
      "tag": "District outline · DCGIS boundary · no road locations shown"},
+    {"id": "weather", "tab": "Road Weather", "headline": "Air and pavement. Clearly separated.",
+     "text": "Compare air and pavement temperatures as separate lines, with illustrative flags marking hours worth a review.",
+     "features": ["Separate air and pavement", "Physical freezing reference", "Illustrative review flags"],
+     "button": "Open Road Weather", "target": "weather", "media": "weather_road",
+     "tag": "Synthetic values · registered points on the DCGIS boundary"},
     {"id": "outlook", "tab": "Storm Outlook", "headline": "See what’s approaching.",
      "text": "A 72-hour NWS air-temperature and precipitation outlook with official DC alerts, loaded only when you ask.",
      "features": ["72-hour NWS outlook", "Official DC alerts", "One DC reference point"],
      "button": "Open Storm Outlook", "target": "outlook", "media": "outlook_storm_clouds",
      "tag": "Illustrative forecast window · not a forecast"},
-    {"id": "weather", "tab": "Road Weather", "headline": "Air and pavement. Clearly separated.",
-     "text": "Compare air and pavement temperatures as separate lines, with illustrative flags marking hours worth a review.",
-     "features": ["Separate air and pavement", "Physical freezing reference", "Illustrative review flags"],
-     "button": "Open Road Weather", "target": "weather", "media": "weather_road",
-     "tag": "Simulation fixture · synthetic values"},
     {"id": "storm", "tab": "Storm Lab", "headline": "Count the whole storm.",
      "text": "Add initial and later applications across the full storm window before comparing material use.",
      "features": ["Initial applications", "Later and catch-up rounds", "Full-window totals"],
@@ -97,7 +97,24 @@ def slide_data():
         "rate": 200, "points": len(scenarios.LOCATIONS),
     }
     boundary = json.loads((HERE / "assets" / "dc_boundary.json").read_text())
-    return {"weather": weather, "storm": storm, "boundary": {"view_box": boundary["view_box"], "path": boundary["path"]}}
+    return {"weather": weather, "storm": storm, "boundary": {"view_box": boundary["view_box"], "path": boundary["path"]},
+            "road_map": compact_map(views)}
+
+
+def compact_map(views):
+    """Homepage preview of the Road Weather map: registry points and their existing synthetic overnight flags (°F)."""
+    import road_map
+    reg = road_map.registry_points()
+    pts = []
+    for lid, name, short, *_ in scenarios.LOCATIONS:
+        ids = [f["id"] for f in views[lid]["flags"] or []]
+        r = reg.get(lid) or {}
+        pts.append({"short": short, "x": r.get("x"), "y": r.get("y"), "partial": r.get("geographic_status") == "partial",
+                    "category": next((c for c in road_map.PRIORITY if c in ids), "no_flag"), "n": len(ids),
+                    "flags": [f["title"] for f in views[lid]["flags"] or []]})
+    used = {p["category"] for p in pts}
+    cats = [{k: c[k] for k in ("id", "label", "color", "shape")} for c in road_map.CATEGORIES if c["id"] in used]
+    return {"points": pts, "categories": cats}
 
 
 HTML = '<div class="sw-root" data-sw-root></div>'
@@ -211,6 +228,25 @@ button:focus-visible { outline:2px solid var(--accent-hi); outline-offset:3px; }
 .reduced .intro .txt { opacity:1; transform:none; }
 .reduced .intro img { transform:none !important; }
 .reduced .draw, .reduced .playhead { animation:none !important; }
+.glass.wide { width:min(860px, 100%); }
+.wx { display:grid; grid-template-columns:250px 1fr; gap:14px; flex:1; min-height:0; }
+.wxc { display:flex; flex-direction:column; min-width:0; min-height:0; }
+.rmc { position:relative; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,.16);
+  background:radial-gradient(ellipse 70% 60% at 50% 40%, rgba(26,39,51,.92) 0%, rgba(14,22,32,.92) 70%); display:flex; align-items:center; justify-content:center; padding:6px; }
+.rmc-map { position:relative; height:100%; max-height:200px; }
+.rmc-map svg { position:absolute; inset:0; width:100%; height:100%; }
+.rmk { position:absolute; width:16px; height:16px; margin:-8px 0 0 -8px; }
+.rmk svg { position:absolute; inset:0; width:16px; height:16px; filter:drop-shadow(0 1px 2px rgba(0,0,0,.6)); }
+.rmk i { position:absolute; inset:-10px; border-radius:50%; background:radial-gradient(circle, var(--c) 0%, rgba(0,0,0,0) 68%); opacity:.35; }
+.rmc.go .rmk { animation:rmkIn .55s cubic-bezier(.2,.8,.2,1.2) both; animation-delay:var(--d); }
+@keyframes rmkIn { from { opacity:0; transform:scale(.4); } to { opacity:1; transform:none; } }
+.rmc-lg { position:absolute; left:6px; top:6px; margin:0; padding:5px 7px; list-style:none; font-size:11px; line-height:1.35; color:#F2F4F6;
+  background:rgba(22,32,42,.6); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); border:1px solid rgba(255,255,255,.18); border-radius:8px; }
+.rmc-lg li { display:flex; align-items:center; gap:4px; } .rmc-lg svg { width:11px; height:11px; }
+.rmc.go .rmc-lg { animation:rmkLg .5s ease-out both; }
+@keyframes rmkLg { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:none; } }
+@media (max-width: 640px) { .wx { grid-template-columns:1fr; } .rmc { height:220px; } }
+.reduced .rmc.go .rmk, .reduced .rmc.go .rmc-lg { animation:none !important; }
 """
 
 JS = r"""
@@ -244,7 +280,27 @@ export default function (component) {
       <g class="playhead" style="--sweep:480px"><line x1="30" y1="40" x2="30" y2="156" stroke="#FF9A57" stroke-width="2"/><circle cx="30" cy="125" r="6" fill="#FF9A57"/></g></svg>
       <div class="cap">Storm Outlook loads NWS atmospheric forecasts on request for one DC reference point; it has no pavement forecast.</div>`;
   }
+  function sym(shape, color) {
+    const P = { triangle: `<path d="M12 2 L22 21 L2 21 Z" fill="${color}" stroke="#0E1620" stroke-width="1.5"/>`,
+      diamond: `<path d="M12 1.5 L22 12 L12 22.5 L2 12 Z" fill="${color}" stroke="#0E1620" stroke-width="1.5"/>`,
+      drop: `<path d="M12 2 C18 10 20 14 20 16 A8 8 0 0 1 4 16 C4 14 6 10 12 2 Z" fill="${color}" stroke="#0E1620" stroke-width="1.5"/>`,
+      question: `<circle cx="12" cy="12" r="10" fill="${color}" stroke="#0E1620" stroke-width="1.5"/><text x="12" y="17" text-anchor="middle" font-size="14" font-weight="700" fill="#0E1620" font-family="system-ui,sans-serif">?</text>`,
+      ring: `<circle cx="12" cy="12" r="8" fill="rgba(14,22,32,.6)" stroke="${color}" stroke-width="3"/>` };
+    return `<svg viewBox="0 0 24 24" aria-hidden="true">${P[shape] || P.ring}</svg>`;
+  }
+  function mapArt() {
+    const m = D.road_map, b = D.boundary, W = b.view_box[2], H = b.view_box[3], C = Object.fromEntries(m.categories.map(c => [c.id, c]));
+    const placed = m.points.filter(p => p.x !== null);
+    const desc = m.points.map(p => `${p.short}: ${p.flags.length ? p.flags.join(', ') : 'no review flag'}`).join('; ');
+    return `<div class="rmc" role="img" aria-label="Map preview: five registered points on the DC boundary with synthetic overnight review flags. ${esc(desc)}.">
+      <div class="rmc-map" style="aspect-ratio:${W} / ${H}"><svg viewBox="0 0 ${W} ${H}" aria-hidden="true"><path d="${b.path}" fill="rgba(255,255,255,.05)" stroke="rgba(255,255,255,.7)" stroke-width="2.4" stroke-linejoin="round"/></svg>
+        ${placed.map((p, i) => `<span class="rmk${p.partial ? ' part' : ''}" style="left:${(p.x / W * 100).toFixed(2)}%;top:${(p.y / H * 100).toFixed(2)}%;--c:${C[p.category].color};--d:${i * 160 + 250}ms"><i></i>${sym(C[p.category].shape, C[p.category].color)}</span>`).join('')}</div>
+      <ul class="rmc-lg" aria-hidden="true">${m.categories.map(c => `<li>${sym(c.shape, c.color)}${esc(c.label)}</li>`).join('')}</ul></div>`;
+  }
   function weatherArt() {
+    return `<div class="wx">${mapArt()}<div class="wxc">${chartArt()}</div></div>`;
+  }
+  function chartArt() {
     const w = D.weather, n = w.hours.length, W = 540, H = 170, L = 34, R = 6, T = 8, B = 22;
     const vals = w.air.concat(w.pavement.filter(v => v !== null), [w.freezing]);
     const lo = Math.floor(Math.min(...vals) - 1), hi = Math.ceil(Math.max(...vals) + 1);
@@ -293,7 +349,7 @@ export default function (component) {
           <div class="copy"><h2>${esc(s.headline)}</h2><p class="lead">${esc(s.text)}</p>
             <ul class="feat">${s.features.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
             <button class="open" type="button" data-target="${s.target}">${esc(s.button)} <span aria-hidden="true">→</span></button></div>
-          <div class="glass"><span class="vtag">${esc(s.tag)}</span>${ART[s.id]()}</div>
+          <div class="glass${s.id === 'weather' ? ' wide' : ''}"><span class="vtag">${esc(s.tag)}</span>${ART[s.id]()}</div>
         </div>`).join('')}</div>
       <div class="controls">
         <div role="tablist" aria-label="Choose a slide">${S.map((s, i) => `<button type="button" role="tab" id="${uid}-t${i}" aria-controls="${uid}-p${i}" data-i="${i}">
@@ -367,6 +423,8 @@ export default function (component) {
     nb.classList.add('on'); nb.classList.remove('prev');
     count.textContent = `${String(cur + 1).padStart(2, '0')} / ${String(N).padStart(2, '0')}`;
     animateBars(slides[cur]); restartRing();
+    const rmc = slides[cur].querySelector('.rmc');          // map preview: markers reveal in sequence each time the slide opens
+    if (rmc) { rmc.classList.remove('go'); void rmc.offsetWidth; rmc.classList.add('go'); }
     if (opts.focusTab) tabs[cur].focus({ preventScroll: true });
     remaining = DUR; schedule(); syncVideo();
   }

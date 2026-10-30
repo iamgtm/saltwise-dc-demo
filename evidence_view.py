@@ -3,6 +3,7 @@ import json
 
 import streamlit as st
 
+import dpw_feedback as dpw
 import media
 import nws_outlook as nws
 from storm_lab_view import html_table
@@ -21,7 +22,8 @@ SOURCES = [
               "hourly forecasts fetched by the trusted data service through the grid URLs NWS returns, with precipitation type from "
               "the structured gridpoint weather layer, within the shared request caps."},
     {"Source": "Xweather Road Weather Conditions", "Status": "Approved · saved snapshots (included allowance)",
-     "Notes": "Provider-modeled pavement forecast, not a sensor. The 2026-10-15 responses cover 20.25 h and supply no issue time. "
+     "Notes": "Provider-modeled pavement forecast, not a sensor. Responses supply no issue time; each location's latest retrieval "
+              "and returned coverage are in the provider evidence snapshot below. "
               "Shown only where the location is verified and the provider road name matched."},
     {"Source": "DDOT RWIS / DCGIS", "Status": "Approved after checks · not connected",
      "Notes": "Latest public readings inspected were from 2023 to January 2024; historical records never appear as current."},
@@ -49,7 +51,9 @@ BUILT = [("Road Weather", "Air and pavement views with review flags · synthetic
 PLANNED = [("Remaining location reviews", "Rhode Island Ave NW road match, MLK Jr Ave SE point, bridge-specific modeling"),
            ("Scheduled snapshot refresh", "Templates prepared only; nothing installed or enabled"),
            ("Current RWIS observations", "After location, timestamp, unit and quality checks"),
-           ("Accessibility verification", "Keyboard and screen-reader testing")]
+           ("Accessibility verification", "Keyboard and screen-reader testing"),
+           ("Operations validation", "Route classifications, critical-section designations and deployment-package details "
+                                     "(DPW); none is used until supplied")]
 
 SEASONAL = [
     {"Source": '<a href="https://www.cpc.ncep.noaa.gov/products/analysis_monitoring/enso_advisory/ensodisc.shtml">NOAA CPC ENSO Diagnostic Discussion</a>',
@@ -73,6 +77,24 @@ def render():
     st.markdown(html_table(KINDS, ["Kind", "Meaning", "In SaltWise now"]), unsafe_allow_html=True)
     st.markdown('<div class="sw-section">DATA SOURCES</div>', unsafe_allow_html=True)
     st.markdown(html_table(SOURCES, ["Source", "Status", "Notes"]), unsafe_allow_html=True)
+    if not dpw.ROWS:   # public demo: no stakeholder correspondence is packaged
+        st.markdown('<div class="sw-section">SaltWise pavement source</div>', unsafe_allow_html=True)
+        st.markdown(html_table([{"Source": a, "Relation": b, "Implemented access and display": c} for a, b, c in dpw.SALTWISE_SOURCES],
+                               ["Source", "Relation", "Implemented access and display"]), unsafe_allow_html=True)
+    else:
+        with st.expander("What we learned from DC winter operations"):
+            st.caption(dpw.SOURCE)
+            st.markdown(html_table([{"Topic": t, "Reported by DPW": r, "SaltWise design response": d, "Information still needed": n}
+                                    for t, r, d, n in dpw.ROWS],
+                                   ["Topic", "Reported by DPW", "SaltWise design response", "Information still needed"]),
+                        unsafe_allow_html=True)
+            st.markdown('<div class="sw-section">Information sources named by DPW</div>', unsafe_allow_html=True)
+            st.markdown(html_table([{"Named by DPW": a, "Where named": b, "SaltWise integration status": c}
+                                    for a, b, c in dpw.AGENCY_PROVIDERS],
+                                   ["Named by DPW", "Where named", "SaltWise integration status"]), unsafe_allow_html=True)
+            st.markdown('<div class="sw-section">SaltWise pavement source (shown separately; not named by DPW)</div>', unsafe_allow_html=True)
+            st.markdown(html_table([{"Source": a, "Relation": b, "Implemented access and display": c} for a, b, c in dpw.SALTWISE_SOURCES],
+                                   ["Source", "Relation", "Implemented access and display"]), unsafe_allow_html=True)
     _provider_snapshot()
     b = nws.RequestBudget()
     c = b.counts()

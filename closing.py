@@ -14,7 +14,7 @@ HEADING = "Weather intelligence. Sustainability first."
 TEXT = ("Bring weather, pavement evidence, and treatment comparisons into one view. Explore ways to reduce avoidable salt use "
         "while maintaining safe, accessible roads—with people making every treatment decision.")
 CTA = "Explore Storm Lab"
-LINKS = [("Home", "home"), ("Storm Outlook", "outlook"), ("Road Weather", "weather"), ("Storm Lab", "storm"), ("Evidence", "evidence")]
+LINKS = [("Home", "home"), ("Road Weather", "weather"), ("Storm Outlook", "outlook"), ("Storm Lab", "storm"), ("Evidence", "evidence")]
 
 
 def _logo_light():

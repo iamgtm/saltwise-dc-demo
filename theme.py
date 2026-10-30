@@ -34,6 +34,8 @@ html, body, [data-testid="stAppViewContainer"] {{
 }}
 [data-testid="stHeader"] {{ height: 68px; background: rgba(242,244,246,.86); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid #D9E0E6; transition: background-color .3s ease, border-color .3s ease; }}
+/* The header overlays the stMain scroller: keep focused or scrolled-to content below it (WCAG 2.4.11). Layout unchanged. */
+[data-testid="stMain"] {{ scroll-padding-top: 76px; }}
 html.sw-over-hero [data-testid="stHeader"] {{ background: rgba(6,10,14,.16) !important; border-bottom-color: rgba(255,255,255,.16) !important; }}
 html.sw-over-hero [data-testid="stTopNavLink"], html.sw-over-hero [data-testid="stTopNavLink"] * {{ color: #F2F4F6 !important; }}
 html.sw-over-hero [data-testid="stHeaderLogo"], html.sw-over-hero [data-testid="stSidebarLogo"] {{ content: url("{LOGO_LIGHT_URI}"); }}
@@ -42,14 +44,17 @@ html.sw-over-hero [data-testid="stExpandSidebarButton"], html.sw-over-hero [data
 html.sw-home .block-container {{ padding-top: 0 !important; padding-bottom: 0 !important; max-width: 1960px !important; padding-left: 48px !important; padding-right: 48px !important; }}
 @media (max-width: 640px) {{ html.sw-home .block-container {{ padding-left: 16px !important; padding-right: 16px !important; }} }}
 html.sw-home [data-testid="stMain"], html.sw-home [data-testid="stAppViewContainer"] {{ overflow-x: hidden; }}
-.block-container {{ padding-top: 4.2rem; max-width: 1240px; }}
+.block-container {{ padding-top: 4.2rem; max-width: 1920px; padding-left: clamp(16px, 3.4vw, 56px) !important; padding-right: clamp(16px, 3.4vw, 56px) !important; }}
+html:not(.sw-home) .block-container [data-testid="stMarkdownContainer"] p {{ max-width: 82ch; }}   /* readable lines on the wider pages */
 .sw-eyebrow {{ font-family: ui-monospace, Menlo, monospace; letter-spacing: .18em; font-size: 12px; color: {TOKENS['muted']}; }}
 .sw-chip {{ border: 1px solid {TOKENS['accent']}; color: {TOKENS['accent_text']}; border-radius: 6px; padding: 1px 6px; margin-right: 6px; }}
 .sw-title {{ font-size: 46px; font-weight: 600; letter-spacing: -0.02em; margin: .25rem 0 .2rem 0; color: {TOKENS['text']}; }}
 .sw-accent {{ color: {TOKENS['accent_text']}; }}
 .sw-sub {{ color: {TOKENS['muted']}; font-size: 17px; max-width: 760px; }}
-.sw-banner {{ display: inline-block; margin: .4rem 0 1.2rem 0; padding: .45rem .9rem; border-radius: 999px;
+.sw-banner {{ display: inline-block; margin: .4rem 0 1.2rem 0; padding: .45rem .9rem; border-radius: 18px;
   border: 1px solid rgba(210,86,10,.40); background: #FFF4EC; color: #7A3108; font-size: 13px; }}
+/* Demo build: an 18px radius keeps one-line labels pill-shaped; wrapped labels become rounded rectangles, not ellipses. */
+@media (max-width: 640px) {{ .sw-banner {{ display: block; padding: .65rem 1rem; line-height: 1.5; }} }}
 .sw-section {{ font-family: ui-monospace, Menlo, monospace; letter-spacing: .16em; font-size: 12px; color: {TOKENS['muted']}; margin: .6rem 0 .3rem 0; }}
 .sw-card {{ background: {TOKENS['panel']}; border: 1px solid {TOKENS['border']}; border-radius: 16px; padding: .85rem .9rem; min-height: 158px; }}
 .sw-card-selected {{ border-color: {TOKENS['accent']}; box-shadow: 0 0 0 3px rgba(210,86,10,.12); background: #FFFFFF; }}

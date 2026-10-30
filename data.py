@@ -7,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 import evidence_snapshot
+import freshness
 import saltwise_contract as sc
 import scenarios
 
@@ -50,11 +51,11 @@ def get_provider_view(location_id, units, window_key, reload_count):
     now = evidence_snapshot.now_utc().replace(second=0, microsecond=0)
     fx, status = evidence_snapshot.fixture(load_snapshots(evidence_snapshot.store_token(), reload_count), location_id, now)
     settings = {"units": units, "mode": "live", "source_mode": "provider", "evaluation_time": fx["evaluation_time"],
-                "window_hours": WINDOWS[window_key][1], "freshness_limits": evidence_snapshot.FRESHNESS_PENDING}
+                "window_hours": WINDOWS[window_key][1], "freshness_limits": freshness.contract_limits() or evidence_snapshot.FRESHNESS_PENDING}
     view = sc.build_view(fx, settings)
     view["export"]["data_mode"] = "provider_snapshot"
     view["export"]["provenance"] = fx["provenance"]
-    return fx, view, status
+    return fx, view, evidence_snapshot.with_freshness_badge(status, view)
 
 
 def fmt_time_exact(ts):

@@ -12,6 +12,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import freshness
+
 ET = ZoneInfo("America/New_York")
 REF_POINT = (38.8945, -77.0426)
 REF_LABEL = "Washington, DC reference-point forecast"
@@ -27,7 +29,7 @@ KIND = "provider_forecast"
 TIMEOUT_S = 15
 
 import demo_config  # noqa: E402  (live weather requests disabled in the demo build)
-ROOT = Path(__file__).resolve().parent          # demo build: every path stays inside this package
+ROOT = next((d for d in Path(__file__).resolve().parents if (d / "run_config.json").exists()), Path.cwd())
 DEFAULT_LOG = ROOT / "logs" / "weather_requests.jsonl"
 
 
@@ -140,7 +142,7 @@ def fetch_json(url, budget, cache, get=None, at=None):
     if r.status_code == 304 and old:
         old["expires_at"] = at + timedelta(seconds=_max_age(h))
         return {"ok": True, "data": old["data"], "retrieved_at": old["retrieved_at"],
-                "cache": f"revalidated at {at.isoformat(timespec='seconds')} (304 not modified; same response as before)",
+                "cache": f"revalidated at {at.isoformat(timespec='seconds')} (304 not modified; same response as before)", "checked_at": at,
                 "error": None}
     if r.status_code != 200:
         return {"ok": False, "data": None, "retrieved_at": None, "cache": None, "error": f"NWS returned HTTP {r.status_code}"}
@@ -150,7 +152,7 @@ def fetch_json(url, budget, cache, get=None, at=None):
         return {"ok": False, "data": None, "retrieved_at": None, "cache": None, "error": "NWS response was not valid JSON"}
     cache.entries[url] = {"data": data, "retrieved_at": at, "etag": h.get("ETag"), "last_modified": h.get("Last-Modified"),
                           "expires_at": at + timedelta(seconds=_max_age(h))}
-    return {"ok": True, "data": data, "retrieved_at": at, "cache": "new response", "error": None}
+    return {"ok": True, "data": data, "retrieved_at": at, "checked_at": at, "cache": "new response", "error": None}
 
 
 def precip_types(text):
@@ -228,7 +230,8 @@ def load_outlook(budget, cache, get=None, at=None):
         hr = fetch_json(hourly_url, budget, cache, get, at)
         if hr["ok"]:
             out["hourly"] = parse_hourly(hr["data"], at)
-            out["hourly_meta"] = {"retrieved_at": hr["retrieved_at"].isoformat(), "cache": hr["cache"], "url": hourly_url}
+            out["hourly_meta"] = {"retrieved_at": hr["retrieved_at"].isoformat(), "cache": hr["cache"], "url": hourly_url,
+                                 "checked_at": hr["checked_at"].isoformat() if hr.get("checked_at") else None}
         else:
             out["hourly_error"] = hr["error"]
     al = fetch_json(ALERTS_URL, budget, cache, get, at)
@@ -266,3 +269,56 @@ def window_context(outlook, start_iso, end_iso):
                     "rates or application counts, is not a pavement forecast, and does not establish treatment "
                     "effectiveness, road safety or actual material reductions."}
 
+
+def assess(outlook, now=None, policy=None):
+    """The loaded outlook as it may be used at `now` under the shared freshness policy (freshness.py; the approved policy
+    unless one is passed). Periods that ended since loading are withheld. A forecast beyond the hard limit, or with
+    inconsistent timestamps, moves to `hourly_excluded` with the reason and feeds no chart, summary or Storm Lab context.
+    A 304 revalidation keeps the original retrieval time and updateTime, so re-checking never makes a forecast newer."""
+    now = now or now_utc()
+    h = outlook.get("hourly")
+    if not h:
+        return outlook, None
+    a = freshness.evaluate(policy if policy is not None else freshness.approved_policy(), "nws_air", h.get("update_time"),
+                           (outlook.get("hourly_meta") or {}).get("retrieved_at"), None, now)
+    ended = [p for p in h["periods"] if parse_time(p["end"]) <= now]
+    h = {**h, "periods": [{**p, "current": parse_time(p["start"]) <= now < parse_time(p["end"])}
+                          for p in h["periods"] if parse_time(p["end"]) > now],
+         "withheld": h.get("withheld", []) + [{"start": p["start"], "reason": "valid period already ended"} for p in ended]}
+    if not a["exclude"]:
+        return {**outlook, "hourly": h}, a
+    return {**outlook, "hourly": None, "hourly_error": freshness.describe(a, "NWS hourly forecast").rstrip("."),
+            "hourly_excluded": {**h, "reason_code": a["reason_code"]}}, a
+
+
+def export_record(outlook, assessment, now):
+    """The Storm Outlook download: every existing field unchanged, plus the shared freshness assessment evaluated at `now` (when
+    the page builds the download; the page passes the actual current time), the policy identity carried by that assessment (read
+    from the validated run_config.json decision), whether the hourly forecast is eligible for current use (with the reason when
+    not) and the source timestamps. An excluded forecast stays under `hourly_excluded`, never under `hourly`. Cached or
+    revalidated responses keep their original NWS updateTime and retrieval time, so re-use never makes a forecast newer."""
+    a, at = assessment, now.isoformat()
+    h = outlook.get("hourly") or outlook.get("hourly_excluded") or {}
+    meta, current = outlook.get("hourly_meta") or {}, (outlook.get("hourly") or {}).get("periods") or []
+    if a is None:
+        eligible, why = False, outlook.get("hourly_error") or "no hourly forecast loaded"
+    elif a["exclude"]:
+        eligible, why = False, freshness.describe(a, "NWS hourly forecast")
+    elif not current:
+        eligible, why = False, "no current or future hourly periods (ended periods are withheld)"
+    else:
+        eligible, why = True, None
+    return {**outlook,
+            "freshness": [] if a is None else [{"quantity": "nws_hourly_forecast", "status": a["contract_status"], "reason_code": a["reason_code"],
+                                                "message": freshness.describe(a, "NWS hourly forecast"), "assessment": a}],
+            "freshness_evaluated_at": at,
+            "current_use": {"eligible": eligible, "reason": why, "confirmed_fresh": bool(a and a["confirmed_fresh"]), "evaluated_at": at},
+            "policy": {"label": a["policy"] if a else None, "active": bool(a and a["policy_active"]),
+                       "approved_policy_version": a.get("approved_policy_version") if a else None,
+                       "approved_date": a.get("policy_approved_date") if a else None,
+                       "note": None if a and a["policy_active"] else "no approved freshness policy: ages shown, not judged"},
+            "evidence_timestamps": {"issue_time": h.get("update_time"), "issue_time_source": "NWS updateTime",
+                                    "generated_at": h.get("generated_at"), "retrieved_at": meta.get("retrieved_at"),
+                                    "checked_at": meta.get("checked_at"), "cache": meta.get("cache"), "loaded_at": outlook.get("loaded_at"),
+                                    "nws_valid_times": h.get("valid_times"), "current_valid_from": current[0]["start"] if current else None,
+                                    "current_valid_to": current[-1]["end"] if current else None}}

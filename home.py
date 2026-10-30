@@ -47,11 +47,11 @@ def default_comparison(use_submitted=True):
 
 
 STATUS = [
-    ("connected", "Connected", "NWS atmospheric forecasts and official DC alerts, loaded on request for one DC reference point.",
+    ("simulated", "Demo interface", "Atmospheric weather view; live forecasts and alerts are disabled in this public demo.",
      [("Open Storm Outlook", "outlook", "home_outlook")]),
     ("simulated", "Simulated", "Five-road pavement scenarios, illustrative review flags and treatment and material comparisons.",
      [("Open Road Weather", "weather", "home_explore_weather"), ("Open Storm Lab", "storm", "home_open_storm")]),
-    ("planned", "Planned", "Validated live pavement integration, verified road coordinates and operational validation.",
+    ("planned", "Pilot next", "Partner validation of forecast accuracy, treatment policies and required road service.",
      [("See Evidence", "evidence", "home_evidence")]),
 ]
 

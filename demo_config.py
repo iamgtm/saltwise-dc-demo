@@ -1,8 +1,8 @@
-"""Settings for the shared review build of SaltWise DC.
+"""Settings for the public SaltWise DC demonstration build.
 
 This build runs in simulation mode only: Road Weather and Storm Lab use the synthetic scenario, live weather requests
-are disabled (no request to the National Weather Service or Xweather can be sent), and no provider snapshots or
-credentials are included. Treatment thresholds stay illustrative; people make every treatment decision.
+are disabled (no request to the National Weather Service or Xweather can be sent), and no provider snapshots, credentials
+or stakeholder correspondence are included. Treatment thresholds stay illustrative; people make every treatment decision.
 """
 DEMO_BUILD = True
 LIVE_WEATHER_REQUESTS = False

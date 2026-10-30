@@ -8,6 +8,10 @@ import altair as alt
 import pandas as pd
 import streamlit as st
 
+import demo_config  # noqa: E402  (public demo build settings)
+
+import page_media
+
 import nws_outlook as nws
 import scenarios
 from storm_lab_view import chart, html_table
@@ -27,9 +31,6 @@ def age(iso, now):
     return f"{m} min" if m < 120 else f"{m // 60} h {m % 60} min"
 
 
-import demo_config  # noqa: E402  (shared review build settings)
-
-
 @st.cache_resource
 def http_cache():
     """Process-wide, so a page reload reuses or revalidates the stored response instead of re-requesting it."""
@@ -46,6 +47,11 @@ def _open_storm_lab(ctx):
     st.session_state["_goto_storm"] = True        # top navigation (main.py): switch page on this rerun
 
 
+def _download(outlook, fresh, now):
+    st.download_button("Download NWS outlook (JSON)", json.dumps(nws.export_record(outlook, fresh, now), indent=2, default=str),
+                       file_name="saltwise_nws_outlook.json", mime="application/json", key="outlook_download")
+
+
 def _groups(periods, kind):
     """Consecutive periods whose NWS text names `kind`, as (start, end) ranges. No arrival time is inferred."""
     out, cur = [], None
@@ -60,27 +66,43 @@ def _groups(periods, kind):
 
 
 def render():
-    st.markdown(
-        '<div class="sw-section">DC STORM OUTLOOK · NEXT 72 HOURS · NWS ATMOSPHERIC FORECAST</div>'
-        f'<h2 class="sw-h2">{nws.REF_LABEL}</h2>'
-        f'<div class="sw-banner">NWS PROVIDER FORECAST · AIR, NOT PAVEMENT — {nws.REF_NOTE}</div>',
-        unsafe_allow_html=True)
+    _render_body()
+    page_media.credits(["outlook_dc_storm", "outlook_clouds"])
+
+
+def _media_band():
+    page_media.band("outlook_clouds", "Time-lapse of clouds moving over the Grand Canyon, Arizona (not DC)", key="ol_media_clouds",
+                    note="Illustrative time-lapse: clouds over the Grand Canyon, Arizona, November 2025 (not DC). Not a forecast, "
+                         "radar or satellite view, and not conditions at any SaltWise location.", scale=1.18, pos="50% 35%")
+
+
+def _render_body():
     budget = nws.RequestBudget()
     c = budget.counts()
     outlook = st.session_state.get("nws_outlook")
-    b1, b2 = st.columns([1, 3])
-    b1.button("Refresh NWS forecast" if outlook else "Load NWS forecast", key="nws_load", type="primary", on_click=_load,
-              disabled=not demo_config.LIVE_WEATHER_REQUESTS,
-              help=None if demo_config.LIVE_WEATHER_REQUESTS else "Disabled in this demo build: live weather requests are turned off.")
-    b2.caption(f"Requests go to {nws.SOURCE} only when you press this button: no automatic polling or retries. "
+    # Opening: heading, forecast status and the load control stay at the top, beside an illustrative photograph.
+    with page_media.split("outlook_dc_storm", "16th Street NW in Washington, DC, during the January 25, 2026 snowstorm", key="ol_photo_storm",
+                          note="Illustrative photograph: 16th Street NW, Washington, DC, during the January 25, 2026 storm. Not current "
+                               "conditions and not a forecast for any road or SaltWise location.", pos="50% 58%"):
+        st.markdown(
+            '<div class="sw-section">DC STORM OUTLOOK · NEXT 72 HOURS · NWS ATMOSPHERIC FORECAST</div>'
+            f'<h2 class="sw-h2">{nws.REF_LABEL}</h2>'
+            f'<div class="sw-banner">NWS PROVIDER FORECAST · AIR, NOT PAVEMENT — {nws.REF_NOTE}</div>',
+            unsafe_allow_html=True)
+        st.button("Refresh NWS forecast" if outlook else "Load NWS forecast", key="nws_load", type="primary", on_click=_load,
+                  disabled=not demo_config.LIVE_WEATHER_REQUESTS,
+                  help=None if demo_config.LIVE_WEATHER_REQUESTS else "Disabled in this demo build: live weather requests are turned off.")
+        st.caption(f"Requests go to {nws.SOURCE} only when you press this button: no automatic polling or retries. "
                f"Weather requests logged — this app process: {c['run']} of {budget.caps['per_run']}; "
                f"today (America/New_York): {c['day']} of {budget.caps['per_day']}, failed attempts included.")
     if not outlook:
         st.info("Not loaded. No NWS request has been sent from this page yet." if demo_config.LIVE_WEATHER_REQUESTS else
                 "Demo build: live NWS forecast loading is disabled, so no outlook is shown and no request can be sent. "
                 "In the full app, the forecast is fetched only when a person presses Load.")
+        _media_band()
         return
     now = nws.now_utc()
+    outlook, fresh = nws.assess(outlook, now)
     h, meta = outlook["hourly"], outlook["hourly_meta"]
 
     # ---- source times ----
@@ -91,7 +113,7 @@ def render():
             f'NWS generated {et(h["generated_at"], "%a %-I:%M %p")} (age {age(h["generated_at"], now)}) · '
             f'NWS update time {et(h["update_time"], "%a %-I:%M %p")} (age {age(h["update_time"], now)}) · '
             f'retrieved {et(meta["retrieved_at"], "%a %-I:%M %p")} ({meta["cache"]}). '
-            'Freshness limits are not yet set, so these ages are shown, not judged.</div>', unsafe_allow_html=True)
+            f'{nws.freshness.describe(fresh, "Freshness")}</div>', unsafe_allow_html=True)
 
     # ---- official alerts, separate from SaltWise review flags ----
     st.markdown('<div class="sw-section">OFFICIAL NWS ALERTS · DC · NOT SALTWISE REVIEW FLAGS</div>', unsafe_allow_html=True)
@@ -117,10 +139,12 @@ def render():
                 unsafe_allow_html=True)
     if outlook["hourly_error"] or not h:
         st.error(f"Hourly forecast unavailable: {outlook['hourly_error']}. No simulated forecast is shown in its place.")
+        _download(outlook, fresh, now)
         return
     periods = h["periods"]
     if not periods:
         st.warning("NWS returned no current or future hourly periods. Nothing is shown.")
+        _download(outlook, fresh, now)
         return
     cov = h["coverage_hours"]
     st.markdown(f"**Coverage:** {len(periods)} hourly periods, {et(periods[0]['start'])} – {et(periods[-1]['end'])} "
@@ -176,6 +200,8 @@ def render():
             for w in h["withheld"]:
                 st.markdown(f"- {w['start'] or 'no start time'}: {w['reason']}")
 
+    _media_band()
+
     # ---- handoff to Storm Lab ----
     st.markdown('<div class="sw-section">USE A FORECAST WINDOW IN STORM LAB · READ-ONLY CONTEXT</div>', unsafe_allow_html=True)
     bounds = [p["start"] for p in periods] + [periods[-1]["end"]]
@@ -194,8 +220,7 @@ def render():
         import nav
         st.switch_page(nav.PAGES["storm"])
 
-    st.download_button("Download NWS outlook (JSON)", json.dumps(outlook, indent=2, default=str),
-                       file_name="saltwise_nws_outlook.json", mime="application/json", key="outlook_download")
+    _download(outlook, fresh, now)
     st.session_state["outlook_state"] = {"n_periods": len(periods), "coverage_hours": cov, "window": [start, end],
                                          "n_alerts": len((outlook["alerts"] or {}).get("alerts", []))}
 

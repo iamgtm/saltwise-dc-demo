@@ -15,7 +15,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
-ROOT = Path(__file__).resolve().parent          # demo build: every path stays inside this package
+import freshness
+
+ROOT = next((d for d in Path(__file__).resolve().parents if (d / "run_config.json").exists()), Path.cwd())
 XW_ATTRIBUTION = {"text": "Powered by Vaisala Xweather", "url": "https://www.xweather.com/"}
 NWS_ATTRIBUTION = {"text": "National Weather Service (api.weather.gov)", "url": "https://www.weather.gov/"}
 PRECIP_WEATHER = {"rain", "rain_showers", "drizzle", "freezing_rain", "freezing_drizzle", "snow", "snow_showers", "sleet",
@@ -23,8 +25,12 @@ PRECIP_WEATHER = {"rain", "rain_showers", "drizzle", "freezing_rain", "freezing_
 FRESHNESS_PENDING = {"_status": "PENDING USER REVIEW - no age limit applied; only periods whose valid time has ended are withheld",
                      "nws_air_forecast_max_age_hours": None, "xweather_pavement_max_age_hours": None,
                      "rwis_observation_max_age_minutes": None}
-FRESHNESS_NOTE = ("Freshness limits are pending user review, so no age limit is applied: only periods whose valid time has "
+_PENDING_NOTE = ("Freshness limits are pending user review, so no age limit is applied: only periods whose valid time has "
                   "ended are withheld. Retrieval age is not forecast age.")
+_APPROVED = freshness.contract_limits()
+FRESHNESS_NOTE = _PENDING_NOTE if _APPROVED is None else (
+    f"Freshness is assessed under the approved policy ({_APPROVED['_status']}): values beyond a hard limit or with "
+    "inconsistent timestamps are excluded from current views; ended periods are withheld. Retrieval age is not forecast age.")
 GEO = {"verified": "Verified on DCGIS", "partial": "Partial (needs review)"}
 ROAD = {"matched": "Matched", "mismatch": "Mismatch", "unresolved": "Unresolved", "not_checked": "Not checked"}
 BRIDGE = {"unconfirmed": "Unconfirmed", "not_applicable": "Not applicable", "confirmed": "Confirmed"}
@@ -74,6 +80,21 @@ def _latest(con, provider, lid):
     return d
 
 
+def _seen(con, provider, lid, snap, n=48):
+    """When the latest snapshot's forecast content was first seen (freshness.content_first_seen) and the last refresh attempt."""
+    out = {"content_first_seen_utc": snap["retrieved_utc"], "last_attempt_utc": None, "last_attempt_status": None}
+    try:
+        rows = con.execute("SELECT retrieved_utc, evidence_json FROM snapshots WHERE provider=? AND location_id=? AND status IN "
+                           "('ok','ok_partial') AND id <= ? ORDER BY id DESC LIMIT ?", (provider, lid, snap["id"], n)).fetchall()
+        out["content_first_seen_utc"] = freshness.content_first_seen([(r, json.loads(e)) for r, e in rows]) or snap["retrieved_utc"]
+        st = con.execute("SELECT last_attempt_utc, last_status FROM refresh_state WHERE provider=? AND location_id=?", (provider, lid)).fetchone()
+        if st:
+            out["last_attempt_utc"], out["last_attempt_status"] = st
+    except (sqlite3.Error, ValueError):
+        pass
+    return out
+
+
 def read_all():
     """Latest usable Xweather and NWS snapshot per registry location. Read-only; never creates the store."""
     out = {"store_status": "available", "registry_generated_utc": None, "locations": {}}
@@ -98,6 +119,8 @@ def read_all():
                 if con is not None:
                     try:
                         snaps[prov] = _latest(con, prov, loc["id"])
+                        if snaps[prov] is not None:
+                            snaps[prov].update(_seen(con, prov, loc["id"], snaps[prov]))
                     except sqlite3.Error as e:
                         out["store_status"] = f"unavailable ({type(e).__name__})"
             out["locations"][loc["id"]] = {"registry": loc, **snaps}
@@ -116,6 +139,9 @@ def statuses(loc, xw=None):
     if snap_rm.get("status") == "mismatch" or (road == "matched" and xw is not None and snap_rm.get("status") != "matched"):
         road = snap_rm.get("status") or "unresolved"          # the stored response must agree before pavement is used
     bridge = (v.get("bridge_specific_modeling") or {}).get("status") or ("unconfirmed" if loc.get("bridge") else "not_applicable")
+    latest = None if xw is None or not snap_rm else {      # the stored response's own match, shown beside the registry record
+        "retrieved_utc": xw.get("retrieved_utc"), "status": snap_rm.get("status"), "provider_road": snap_rm.get("provider_road"),
+        "provider_road_type": snap_rm.get("provider_road_type"), "distance_m": (xw.get("meta") or {}).get("distance_m")}
     prov_road = snap_rm.get("provider_road") or reg_rm.get("provider_road")
     prov_type = snap_rm.get("provider_road_type") or reg_rm.get("provider_road_type")
     keep = " The road stays in assumed service."
@@ -134,7 +160,8 @@ def statuses(loc, xw=None):
         reason, short = None, None
     return {"geo": geo, "road": road, "bridge": bridge, "is_bridge": bool(loc.get("bridge")),
             "geo_label": GEO.get(geo, geo.title()), "road_label": ROAD.get(road, road), "bridge_label": BRIDGE.get(bridge, bridge),
-            "provider_road": prov_road, "provider_road_type": prov_type, "pavement_reason": reason, "pavement_short": short}
+            "provider_road": prov_road, "provider_road_type": prov_type, "pavement_reason": reason, "pavement_short": short,
+            "latest_road": latest}
 
 
 def air_reason(geo, nw):
@@ -211,6 +238,8 @@ def provenance(loc, s, xw, nw, now):
         pav = {"provider": "Xweather Road Weather Conditions", "kind": "provider-modeled pavement forecast (not a sensor observation)",
                "used_in_view": s["pavement_reason"] is None, "withheld_reason": s["pavement_reason"],
                "retrieved_utc": xw["retrieved_utc"], "issued_utc": xw["issued_utc"], "issue_time": xw["issued_utc"] or "not supplied by provider",
+               "content_first_seen_utc": xw.get("content_first_seen_utc"), "last_attempt_utc": xw.get("last_attempt_utc"),
+               "last_attempt_status": xw.get("last_attempt_status"), "content_comparison": freshness.CONTENT_NOTE,
                "returned_coverage_utc": m.get("coverage_utc"), "returned_coverage_hours": m.get("coverage_hours"),
                "periods_ended_before_evaluation": n_end, "periods_current": n_cur, "geographic_check": m.get("geographic_check"),
                "returned_distance_m": m.get("distance_m"), "fields_present": m.get("fields_present"),
@@ -221,6 +250,8 @@ def provenance(loc, s, xw, nw, now):
         air = {"provider": "NWS api.weather.gov", "kind": "provider atmospheric forecast (air temperature; not pavement)",
                "used_in_view": s.get("air_reason") is None, "withheld_reason": s.get("air_reason"),
                "retrieved_utc": nw["retrieved_utc"], "issued_utc": nw["issued_utc"], "issue_time": m.get("update_time") or "not supplied by provider",
+               "content_first_seen_utc": nw.get("content_first_seen_utc"), "last_attempt_utc": nw.get("last_attempt_utc"),
+               "last_attempt_status": nw.get("last_attempt_status"), "content_comparison": freshness.CONTENT_NOTE,
                "generated_at": m.get("generated_at"), "grid": m.get("grid"), "shared_grid_with": m.get("shared_grid_with"),
                "points_cache": m.get("points_cache"), "forecast_hourly_url": m.get("forecast_hourly_url"),
                "weather_layer": m.get("weather_layer_status"), "returned_coverage_utc": m.get("coverage_utc"),
@@ -231,12 +262,25 @@ def provenance(loc, s, xw, nw, now):
         "location_id": loc["id"], "name": loc["name"], "evaluated_at_utc": iso(now),
         "statuses": {"geographic_verification": {"status": s["geo"], "label": s["geo_label"], "basis": (v.get("geographic_verification") or {}).get("basis")},
                      "provider_road_matching": {"status": s["road"], "label": s["road_label"], "provider_road": s["provider_road"],
-                                                "provider_road_type": s["provider_road_type"], "basis": (v.get("provider_road_matching") or {}).get("basis")},
+                                                "provider_road_type": s["provider_road_type"], "basis": (v.get("provider_road_matching") or {}).get("basis"),
+                                                "latest_response": s["latest_road"]},
                      "bridge_specific_modeling": {"status": s["bridge"], "label": s["bridge_label"], "basis": (v.get("bridge_specific_modeling") or {}).get("basis")}},
         "open_questions": loc.get("open_questions") or [],
         "assumed_service": "included: missing or withheld evidence never removes a road from assumed service",
         "treatment_decision": None, "pavement": pav, "air": air, "freshness": FRESHNESS_NOTE,
         "retrieval_age_minutes": {"pavement": _age(xw, now), "air": _age(nw, now)}})
+
+
+FRESHNESS_SHORT = {"over_hard_limit": "freshness limit", "inconsistent_timestamps": "timestamps", "age_unknown": "age unknown"}
+
+
+def with_freshness_badge(s, view):
+    """The freshness exclusion happens when the view is built; the card badge and chart label say so (display only)."""
+    w = next((x for x in view["withheld"] if x["quantity"] == "pavement_temperature" and x.get("reason_code") in FRESHNESS_SHORT), None)
+    if w is None or s["pavement_reason"]:
+        return s
+    short = FRESHNESS_SHORT[w["reason_code"]]
+    return {**s, "pavement_badge": f"Pavement withheld · {short}", "freshness_short": short}
 
 
 def fixture(snap, location_id, now):
@@ -250,12 +294,14 @@ def fixture(snap, location_id, now):
           "evaluation_time": iso(now)}
     if s["pavement_reason"] is None:
         fx["xweather_roadweather"], fx["retrieved_at"] = _xw_payload(xw), xw["retrieved_utc"]
+        fx["pavement_content_first_seen"] = xw.get("content_first_seen_utc")
     else:
         fx["pavement_withheld_reason"] = s["pavement_reason"]
         fx["road_match"] = {"status": {"matched": "match"}.get(s["road"], s["road"]), "returned_name": s["provider_road"],
                             "returned_type": s["provider_road_type"], "note": s["pavement_reason"]}
     if s["air_reason"] is None:
         fx["nws_hourly"] = _nws_payload(nw)
+        fx["nws_retrieved_at"], fx["nws_content_first_seen"] = nw["retrieved_utc"], nw.get("content_first_seen_utc")
     else:
         fx["air_unavailable_reason"] = s["air_reason"]
     fx["provenance"] = provenance(loc, s, xw, nw, now)
@@ -290,13 +336,23 @@ def details_markdown(prov, checks=()):
         x = s[key]
         return f"**{title}:** {x['label']}" + (f" — {x['basis']}" if x.get("basis") else "")
 
+    def road_line():
+        x, lr = s["provider_road_matching"], s["provider_road_matching"].get("latest_response")
+        text = "**Provider road-name match (Xweather):** " + x["label"] + (f" — registry record: {x['basis']}" if x.get("basis") else "")
+        if lr and lr.get("provider_road"):
+            text += (f" Latest stored response (retrieved {lr['retrieved_utc']}): returned '{lr['provider_road']}'"
+                     + (f" (type '{lr['provider_road_type']}')" if lr.get("provider_road_type") else "")
+                     + (f", {lr['distance_m']:g} m from the requested point" if lr.get("distance_m") is not None else "")
+                     + f": {ROAD.get(lr['status'], lr['status'] or 'unknown').lower()}.")
+        return text
+
     lines = ["**Data mode:** provider data from saved snapshots (read-only; this page sends no weather request)",
              f"**Evaluated at (UTC):** {prov['evaluated_at_utc']}",
              status_line("geographic_verification", "Geographic verification (DCGIS)"),
-             status_line("provider_road_matching", "Provider road-name match (Xweather)"),
+             road_line(),
              status_line("bridge_specific_modeling", "Bridge-specific modeling")]
     if p.get("used_in_view"):
-        lines.append(f"**Pavement · {p['kind']}:** retrieved {p['retrieved_utc']}; issue time {p['issue_time']}; returned coverage "
+        lines.append(f"**Pavement · {p['kind']}:** last retrieved {p['retrieved_utc']}; unchanged content first seen {p.get('content_first_seen_utc') or 'unknown'}; last refresh attempt {p.get('last_attempt_utc') or 'unknown'}; issue time {p['issue_time']}; returned coverage "
                      f"{_cov(p)}; {p['periods_ended_before_evaluation']} ended period(s) withheld, {p['periods_current']} current.")
     else:
         lines.append(f"**Pavement:** {p.get('withheld_reason') or 'unavailable'}"
@@ -384,3 +440,40 @@ def evidence_index(xw, nw):
             else:
                 by[(e["variable"], e["valid_from_utc"])] = e["id"]
     return {"by_start": by, "weather": weather}
+
+
+# Pavement freshness beside the Road Weather chart (display only). The status and explanation come from the view's own policy result
+# (saltwise_contract -> freshness.describe); thresholds, timestamps and withholding are unchanged.
+PAVEMENT_FRESHNESS_LABEL = {
+    "warning": ("warning", "Pavement freshness warning — values remain visible but are not confirmed fresh."),
+    "within_policy": ("ok", "Pavement freshness: within the approved policy."),
+    "issue_time_unknown": ("info", "Pavement freshness: within the limits, not confirmed fresh."),
+    "retrieval_time_unknown": ("info", "Pavement freshness: not confirmed fresh."),
+    "not_assessed": ("info", "Pavement freshness: not assessed."),
+}
+PAVEMENT_WITHHELD_CODES = {"over_hard_limit", "inconsistent_timestamps", "age_unknown", "valid_period_ended"}
+_NOTICE_STYLE = {"warning": "border-left:5px solid #B45309;background:#FEF3C7;color:#451A03",
+                 "ok": "border-left:5px solid #15803D;background:#F0FDF4;color:#14532D",
+                 "info": "border-left:5px solid #475569;background:#F1F5F9;color:#0F172A"}
+
+
+def pavement_freshness_notice(view):
+    """Label and explanation for pavement that stays in the view; None when there is no pavement assessment, or when the
+    pavement is withheld (its existing withheld message is already shown)."""
+    f = next((x for x in view.get("freshness") or [] if x.get("quantity") == "pavement_temperature"), None)
+    if f is None or f.get("reason_code") in PAVEMENT_WITHHELD_CODES:
+        return None
+    level, label = PAVEMENT_FRESHNESS_LABEL.get(f.get("reason_code"), ("info", "Pavement freshness: see the explanation."))
+    return {"level": level, "reason_code": f.get("reason_code"), "label": label, "detail": f.get("message") or ""}
+
+
+def pavement_freshness_html(view):
+    """Markup for the notice ('' when there is none). The text states the status; the color only repeats it."""
+    from html import escape
+    n = pavement_freshness_notice(view)
+    if n is None:
+        return ""
+    icon = "⚠ " if n["level"] == "warning" else ""
+    return (f'<div class="sw-fresh sw-fresh-{n["level"]}" data-testid="pavement-freshness-note" role="status" '
+            f'style="{_NOTICE_STYLE[n["level"]]};padding:10px 14px;border-radius:6px;margin:4px 0 12px;line-height:1.45">'
+            f'<b>{icon}{escape(n["label"])}</b><br>{escape(n["detail"])}</div>')

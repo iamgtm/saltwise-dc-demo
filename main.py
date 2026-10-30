@@ -12,7 +12,7 @@ import nav  # noqa: E402
 from storm_lab_view import PERSIST_PREFIXES  # noqa: E402
 from theme import CSS  # noqa: E402
 import logo_link  # noqa: E402
-import demo_config  # noqa: E402  (shared review build settings)
+import demo_config  # noqa: E402  (public demo build settings)
 
 st.set_page_config(page_title="SaltWise DC", layout="wide", initial_sidebar_state="collapsed")
 st.markdown(CSS, unsafe_allow_html=True)
